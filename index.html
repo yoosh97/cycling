@@ -2,38 +2,62 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>GPX 다중 분석 + 지도</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>GPX 다중 분석 + 지도 (모바일 친화)</title>
 
   <!-- Leaflet (SRI 제거) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height: 1.5; padding: 24px; }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    :root { --gap: 12px; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height: 1.5; padding: 16px; }
+    @media (min-width: 768px) { body { padding: 24px; } }
+    .row { display: flex; gap: var(--gap); flex-wrap: wrap; align-items: center; }
     input[type="number"], select { width: 8rem; }
+    .btns { display:flex; gap:8px; margin-top:12px; flex-wrap: wrap; }
+    button { padding: 10px 14px; border: 1px solid #ddd; border-radius: 10px; background:#fafafa; }
+    button.primary { background:#0a7; color:white; border-color:#0a7; }
+    button.danger { background:#f33; color:white; border-color:#f33; }
     table { border-collapse: collapse; width: 100%; margin-top: 16px; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
-    th { background: #f5f5f5; }
+    th { background: #f5f5f5; position: sticky; top: 0; z-index: 1; }
     td.left, th.left { text-align: left; }
+    tr.total-row { background: #f0f7ff; font-weight: 600; }
     .muted { color:#666; font-size: .9rem; }
-    .btns { display:flex; gap:8px; margin-top:12px; }
-    #map { height: 480px; margin-top: 16px; border-radius: 12px; overflow: hidden; }
+    #map { height: 420px; margin-top: 12px; border-radius: 12px; overflow: hidden; }
     .legend {
       background: #fff; padding: 8px 10px; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.2);
       line-height: 1.2; font-size: 12px;
     }
     .legend .bar { height: 10px; width: 160px; background: linear-gradient(90deg, #3066ff, #21c36f, #ffd33d, #ff3b3b); border-radius: 4px; margin: 6px 0; }
     .legend .scale { display:flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
+
+    /* 모바일 친화 파일칩 목록 */
+    #fileChips { display:flex; gap:8px; flex-wrap: wrap; margin-top: 8px; }
+    .chip {
+      display:flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid #ddd; border-radius:999px; background:#fff;
+      box-shadow: 0 1px 1px rgba(0,0,0,.04);
+      max-width: 100%;
+    }
+    .chip span { max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chip button { padding:4px 8px; border-radius:999px; border:1px solid #eee; background:#f6f6f6; }
+    .toolbar { display:flex; gap:8px; align-items:center; }
   </style>
 </head>
 <body>
   <h1>GPX 다중 분석</h1>
 
-  <div class="row">
-    <input type="file" id="gpxFiles" accept=".gpx" multiple />
-    <label class="muted">여러 개 파일 선택 가능</label>
+  <!-- 모바일 친화 파일 선택 툴바 -->
+  <div class="toolbar">
+    <!-- 기존 multiple input: 한 번에 여러 개 선택 가능 (데스크톱/일부 모바일) -->
+    <input type="file" id="gpxFiles" accept=".gpx" multiple style="flex:1; min-width: 160px;" />
+    <!-- 반복 추가 버튼: 기존 선택 유지하면서 계속 추가 -->
+    <button id="addFilesBtn" type="button" class="primary">파일 추가</button>
+    <button id="clearFilesBtn" type="button" class="danger">선택 초기화</button>
   </div>
+  <div id="fileChips" aria-live="polite"></div>
+  <div class="muted">* 모바일에서는 “파일 추가”를 여러 번 눌러 드라이브/파일 앱에서 연속 선택하면 됩니다.</div>
 
   <div class="row" style="margin-top:8px;">
     <label>이동임계속도(m/s):
@@ -88,7 +112,7 @@
   <div id="map"></div>
 
   <div class="btns">
-    <button id="analyzeBtn">분석</button>
+    <button id="analyzeBtn" class="primary">분석</button>
     <button id="exportSummaryBtn" disabled>요약 CSV</button>
     <button id="exportLapsBtn" disabled>랩 CSV</button>
   </div>
@@ -134,8 +158,8 @@
   </table>
 
   <p class="muted">
-    * 지도의 선색: 선택한 기준(속도/심박)에 따라 그라데이션. 단색 선택 시 파일마다 다른 단색<br/>
-    * 레이어 컨트롤로 파일별 켜기/끄기 가능. 시작/종료 마커, 전체 경로 맞춤 포함
+    * 모바일: “파일 추가”를 반복 눌러 여러 위치에서 추가 가능. 선택 목록에서 개별 삭제 가능<br/>
+    * 지도의 선색: 속도/심박 기준 그라데이션 또는 단색. 레이어 토글, 시작/종료 마커, 전체 경로 맞춤 포함
   </p>
 
   <!-- Leaflet JS는 반드시 내 스크립트보다 먼저 -->
