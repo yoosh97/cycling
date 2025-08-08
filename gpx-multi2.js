@@ -1,6 +1,102 @@
 /* ===== 콘솔 핑거프린트 ===== */
 console.log("[GPX] script loaded");
 
+/* ===== 모바일 친화 다중 파일 선택 ===== */
+const elNativeInput = document.getElementById("gpxFiles");
+const elAddBtn = document.getElementById("addFilesBtn");
+const elClearBtn = document.getElementById("clearFilesBtn");
+const elChips = document.getElementById("fileChips");
+
+// 선택 목록(중복 방지)
+let selectedFiles = []; // Array<File>
+
+function fileKey(f) {
+  return `${f.name}|${f.size}|${f.lastModified}`;
+}
+function addFiles(filesLike) {
+  const list = Array.from(filesLike || []);
+  let added = 0;
+  for (const f of list) {
+    const key = fileKey(f);
+    if (!selectedFiles.some(x => fileKey(x) === key)) {
+      selectedFiles.push(f);
+      added++;
+    }
+  }
+  if (added) renderChips();
+}
+function removeFileByIndex(idx) {
+  selectedFiles.splice(idx, 1);
+  renderChips();
+}
+function clearSelected() {
+  selectedFiles = [];
+  renderChips();
+  // 네이티브 input도 초기화(같은 파일 다시 선택 가능)
+  elNativeInput.value = "";
+}
+function renderChips() {
+  elChips.innerHTML = "";
+  if (!selectedFiles.length) {
+    elChips.insertAdjacentHTML("beforeend", `<div class="muted">선택된 파일 없음</div>`);
+    return;
+  }
+  selectedFiles.forEach((f, i) => {
+    const li = document.createElement("div");
+    li.className = "chip";
+    li.innerHTML = `<span title="${f.name}">${f.name}</span><button type="button" aria-label="삭제">삭제</button>`;
+    li.querySelector("button").addEventListener("click", () => removeFileByIndex(i));
+    elChips.appendChild(li);
+  });
+}
+
+/* 네이티브 multiple input으로도 병합 */
+elNativeInput.addEventListener("change", (e) => {
+  addFiles(e.target.files);
+});
+
+/* File System Access API 경로 (안드로이드 크롬 등) */
+async function pickWithFSAccess() {
+  try {
+    const handles = await window.showOpenFilePicker({
+      multiple: true,
+      types: [{ description: "GPX Files", accept: { "application/gpx+xml": [".gpx"], "text/xml": [".gpx"] } }]
+    });
+    const files = await Promise.all(handles.map(h => h.getFile()));
+    addFiles(files);
+  } catch (e) {
+    if (e?.name !== "AbortError") console.warn("FS Access picker 실패:", e);
+  }
+}
+
+/* fallback: 숨김 input를 동적으로 눌러 한 번 더 추가 */
+function pickWithHiddenInput() {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".gpx";
+    input.multiple = true;
+    input.style.display = "none";
+    document.body.appendChild(input);
+    input.addEventListener("change", () => {
+      addFiles(input.files);
+      document.body.removeChild(input);
+      resolve();
+    }, { once: true });
+    input.click();
+  });
+}
+
+/* “파일 추가” 버튼: FS Access 지원 시 그 경로, 아니면 fallback */
+elAddBtn.addEventListener("click", async () => {
+  if (window.showOpenFilePicker) await pickWithFSAccess();
+  else await pickWithHiddenInput();
+});
+elClearBtn.addEventListener("click", clearSelected);
+
+// 초기 렌더
+renderChips();
+
 /* ===== 공통 유틸 ===== */
 const toRad = (d) => d * Math.PI / 180;
 const haversine = (lat1, lon1, lat2, lon2) => {
@@ -28,7 +124,6 @@ const paceMinPerKm = (avgSpeedKmh) => {
 const round = (n, d=2) => Number.isFinite(n) ? Number(n.toFixed(d)) : "";
 
 /* ===== HR/칼로리 ===== */
-// 키텔(2005) kcal/min
 function kcalPerMinKeytel(avgHR, weightKg, age, sex) {
   if (!isFinite(avgHR) || !isFinite(weightKg) || !isFinite(age) || !sex) return null;
   if (sex === "male")   return (-55.0969 + 0.6309*avgHR + 0.1988*weightKg + 0.2017*age) / 4.184;
@@ -57,13 +152,10 @@ function estimateCaloriesMET(avgSpeedKmh, durationS, weightKg) {
 /* ===== GPX 파서 ===== */
 function parseGpxText(xmlText) {
   const dom = new DOMParser().parseFromString(xmlText, "application/xml");
-
-  // XML 파싱 에러 방지
   const perr = dom.getElementsByTagName("parsererror");
   if (perr && perr.length) {
     throw new Error("GPX XML 파싱 실패: 파일이 손상되었거나 형식이 맞지 않습니다.");
   }
-
   const trkpts = Array.from(dom.getElementsByTagName("trkpt"));
 
   // 파일 내 calories 총합 시도
@@ -128,7 +220,9 @@ function analyzePoints(points, opts) {
       avgHr: null, maxHr: null,
       segments: [],
       firstLatLng: null,
-      lastLatLng: null
+      lastLatLng: null,
+      hrTimeSum: 0,
+      hrTimeDen: 0
     };
   }
 
@@ -151,13 +245,11 @@ function analyzePoints(points, opts) {
     if (v >= movingSpeedThreshold) movingTime += dt;
     if (v > maxSpeedMps) maxSpeedMps = v;
 
-    // 고도
     if (Number.isFinite(p1.ele) && Number.isFinite(p2.ele)) {
       const de = p2.ele - p1.ele;
       if (de > minElevGain) elevGain += de;
     }
 
-    // HR
     if (Number.isFinite(p1.hr)) maxHr = Math.max(maxHr ?? p1.hr, p1.hr);
     if (Number.isFinite(p2.hr)) maxHr = Math.max(maxHr ?? p2.hr, p2.hr);
 
@@ -194,7 +286,9 @@ function analyzePoints(points, opts) {
     avgHr, maxHr,
     segments,
     firstLatLng: [points[0].lat, points[0].lon],
-    lastLatLng:  [points[points.length-1].lat, points[points.length-1].lon]
+    lastLatLng:  [points[points.length-1].lat, points[points.length-1].lon],
+    hrTimeSum,  // Σ(hr_avg * dt)
+    hrTimeDen   // Σ(dt)
   };
 }
 
@@ -315,14 +409,14 @@ function initMapSafe() {
   }).addTo(map);
 
   layerControl = L.control.layers({ OpenStreetMap: osm }, {}, { collapsed: false }).addTo(map);
-  map.setView([36.5, 127.8], 7); // 한국 대략
+  map.setView([36.5, 127.8], 7);
   return map;
 }
 
 function colorFromValue(val, minVal, maxVal) {
   if (!isFinite(val) || !isFinite(minVal) || !isFinite(maxVal) || maxVal <= minVal) return '#888';
   const t = Math.min(1, Math.max(0, (val - minVal) / (maxVal - minVal)));
-  const hue = (1 - t) * 240; // 240→0
+  const hue = (1 - t) * 240;
   return `hsl(${hue}, 85%, 50%)`;
 }
 function addLegend(minVal, maxVal, unitLabel) {
@@ -362,7 +456,6 @@ function drawTrackLayer(fileName, analysis, colorMode, boundsCollector) {
 
   let minMetric = Infinity, maxMetric = -Infinity;
 
-  // 범위 계산
   for (const s of analysis.segments) {
     const metric = (colorMode === 'hr') ? (s.hrAvg ?? NaN) :
                    (colorMode === 'speed') ? (s.v * 3.6) : NaN;
@@ -373,7 +466,6 @@ function drawTrackLayer(fileName, analysis, colorMode, boundsCollector) {
   }
   if (minMetric === Infinity || maxMetric === -Infinity) { minMetric = 0; maxMetric = 1; }
 
-  // 선 그리기
   for (const s of analysis.segments) {
     const p1 = [s.lat1, s.lon1], p2 = [s.lat2, s.lon2];
     const metric = (colorMode === 'hr') ? (s.hrAvg ?? NaN) :
@@ -388,7 +480,6 @@ function drawTrackLayer(fileName, analysis, colorMode, boundsCollector) {
     boundsCollector.extend(p2);
   }
 
-  // 시작/종료 마커
   if (analysis.firstLatLng) {
     L.circleMarker(analysis.firstLatLng, { radius: 5, color:'#00a84f', fillColor:'#00a84f', fillOpacity:1 })
       .bindPopup(`Start: ${fileName}`).addTo(group);
@@ -407,7 +498,6 @@ function drawTrackLayer(fileName, analysis, colorMode, boundsCollector) {
 }
 
 /* ===== UI 바인딩 ===== */
-const elFiles = document.getElementById("gpxFiles");
 const elAnalyze = document.getElementById("analyzeBtn");
 const elExportSummary = document.getElementById("exportSummaryBtn");
 const elExportLaps = document.getElementById("exportLapsBtn");
@@ -424,10 +514,15 @@ const mapInstance = initMapSafe();
 elAnalyze.addEventListener("click", async () => {
   console.log("[GPX] analyze clicked");
   try {
-    const files = Array.from(elFiles.files || []);
+    // 기존 input에서 고른 항목도 병합(모바일에서 기존 input만 쓴 경우 대비)
+    if (elNativeInput.files && elNativeInput.files.length) {
+      addFiles(elNativeInput.files);
+    }
+
+    const files = selectedFiles.slice();
     console.log("[GPX] files:", files.map(f=>f.name));
     if (files.length === 0) {
-      alert("GPX 파일을 선택해 주세요.");
+      alert("GPX 파일을 선택해 주세요. (파일 추가 버튼 또는 파일 입력 사용)");
       return;
     }
 
@@ -458,13 +553,19 @@ elAnalyze.addEventListener("click", async () => {
     const colorMode = elColorMode.value;
     const bounds = (window.L && L.latLngBounds) ? L.latLngBounds() : null;
 
+    // 합계 누적자
+    const agg = {
+      points: 0, distM: 0, elapsedS: 0, movingS: 0, elevM: 0,
+      maxKmh: 0, maxHr: null, hrTimeSum: 0, hrTimeDen: 0, calories: 0
+    };
+
     for (const file of files) {
       try {
         const text = await file.text();
 
         const { points, fileCalories } = parseGpxText(text);
         if (!points || points.length < 2) {
-          console.warn(`[GPX] ${file.name}: 유효한 좌표/시간 포인트가 부족합니다.`);
+          console.warn(`[GPX] ${file.name}: 유효한 좌표/시간 포인트가 부족`);
           const tr = document.createElement("tr");
           tr.innerHTML = `
             <td class="left">${file.name}</td>
@@ -483,23 +584,15 @@ elAnalyze.addEventListener("click", async () => {
           minElevGain
         });
 
-        // 지도
         if (mapInstance && bounds) {
           drawTrackLayer(file.name, analysis, colorMode, bounds);
         } else {
-          console.warn("Leaflet이 로드되지 않아 지도 표시를 생략합니다.");
+          console.warn("Leaflet 미로딩 → 지도 생략");
         }
 
-        // 랩 & 칼로리
-        const calorieParams = {
-          method,
-          fileCalories,
-          totalElapsedS: analysis.elapsedS,
-          weightKg, age, sex
-        };
+        const calorieParams = { method, fileCalories, totalElapsedS: analysis.elapsedS, weightKg, age, sex };
         const laps = makeDistanceLaps(analysis, lapDistanceKm, calorieParams);
 
-        // 파일 총 칼로리
         let caloriesKcal = null;
         if (method === "auto" && fileCalories != null) {
           caloriesKcal = fileCalories;
@@ -510,6 +603,18 @@ elAnalyze.addEventListener("click", async () => {
           );
           caloriesKcal = chosen != null ? chosen : null;
         }
+
+        // 합계 누적
+        agg.points  += analysis.points;
+        agg.distM   += analysis.totalDistM;
+        agg.elapsedS+= analysis.elapsedS;
+        agg.movingS += analysis.movingS;
+        agg.elevM   += analysis.elevGainM;
+        agg.maxKmh   = Math.max(agg.maxKmh, analysis.maxKmh || 0);
+        if (analysis.maxHr != null) agg.maxHr = Math.max(agg.maxHr ?? analysis.maxHr, analysis.maxHr);
+        agg.hrTimeSum += (analysis.hrTimeSum || 0);
+        agg.hrTimeDen += (analysis.hrTimeDen || 0);
+        if (caloriesKcal != null) agg.calories += caloriesKcal;
 
         // 요약
         const sumRow = {
@@ -583,7 +688,50 @@ elAnalyze.addEventListener("click", async () => {
       }
     }
 
-    // 전체 경로로 화면 맞춤
+    // 합계 행
+    if (agg.elapsedS > 0 || agg.distM > 0) {
+      const totalAvgKmhElapsed = (agg.distM / (agg.elapsedS || Infinity)) * 3.6;
+      const totalAvgKmhMoving  = (agg.distM / (agg.movingS || Infinity)) * 3.6;
+      const totalPace          = paceMinPerKm(totalAvgKmhElapsed);
+      const totalAvgHr         = agg.hrTimeDen > 0 ? Math.round(agg.hrTimeSum / agg.hrTimeDen) : "";
+
+      const totalRow = {
+        file: "합계",
+        points: agg.points,
+        total_km: round(agg.distM / 1000, 3),
+        elapsed: secToHMS(agg.elapsedS),
+        moving:  secToHMS(agg.movingS),
+        avg_kmh_elapsed: round(totalAvgKmhElapsed, 2),
+        avg_kmh_moving:  round(totalAvgKmhMoving, 2),
+        max_kmh: round(agg.maxKmh, 2),
+        avg_pace: totalPace,
+        elev_gain_m: round(agg.elevM, 1),
+        avg_hr: totalAvgHr,
+        max_hr: agg.maxHr != null ? Math.round(agg.maxHr) : "",
+        calories_kcal: agg.calories ? Math.round(agg.calories) : ""
+      };
+
+      const trT = document.createElement("tr");
+      trT.className = "total-row";
+      trT.innerHTML = `
+        <td class="left">${totalRow.file}</td>
+        <td>${totalRow.points}</td>
+        <td>${totalRow.total_km}</td>
+        <td>${totalRow.elapsed}</td>
+        <td>${totalRow.moving}</td>
+        <td>${totalRow.avg_kmh_elapsed}</td>
+        <td>${totalRow.avg_kmh_moving}</td>
+        <td>${totalRow.max_kmh}</td>
+        <td>${totalRow.avg_pace}</td>
+        <td>${totalRow.elev_gain_m}</td>
+        <td>${totalRow.avg_hr}</td>
+        <td>${totalRow.max_hr}</td>
+        <td>${totalRow.calories_kcal}</td>
+      `;
+      tbodySummary.appendChild(trT);
+      lastSummary.push(totalRow);
+    }
+
     if (mapInstance && bounds && bounds.isValid()) map.fitBounds(bounds.pad(0.1));
 
     elExportSummary.disabled = lastSummary.length === 0;
