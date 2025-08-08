@@ -1,6 +1,8 @@
 /* ===== 유틸 ===== */
 const $ = (sel) => document.querySelector(sel);
 const round = (n, d=2) => Number.isFinite(n) ? Number(n.toFixed(d)) : "";
+const numOr = (v, fallback) => Number.isFinite(v) ? v : fallback;
+
 const secToHMS = (s=0) => {
   s = Math.max(0, Math.round(s));
   const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), ss = s%60;
@@ -146,7 +148,7 @@ function parseGpxText(xml){
   return { points: unique, fileCalories: anyCal? fileCalories : null };
 }
 
-/* ===== 고도 스무딩(롤링 메디안) ===== */
+/* ===== 고도 스무딩 ===== */
 function medianSmooth(arr, win=5){
   const half=Math.floor(win/2); const res=new Array(arr.length);
   for(let i=0;i<arr.length;i++){
@@ -157,32 +159,54 @@ function medianSmooth(arr, win=5){
   return res;
 }
 
+/* ===== 5초 롤링 최대속도 ===== */
+function maxSpeedKmhSmoothed(segments, windowS = 5) {
+  let i = 0, j = 0, sumD = 0, sumT = 0, maxKmh = 0;
+  const dtArr = segments.map(s => s.dt);
+  const dArr  = segments.map(s => s.d);
+  while (i < segments.length) {
+    while (j < segments.length && (sumT + dtArr[j]) <= windowS) {
+      sumT += dtArr[j]; sumD += dArr[j]; j++;
+    }
+    if (sumT > 0) {
+      const vKmh = (sumD / sumT) * 3.6;
+      if (vKmh > maxKmh) maxKmh = vKmh;
+    }
+    if (sumT > 0) { sumT -= dtArr[i]; sumD -= dArr[i]; }
+    i++;
+    if (j < i) { j = i; sumT = 0; sumD = 0; }
+  }
+  return maxKmh;
+}
+
 /* ===== 분석 ===== */
 function analyzePoints(points, opts){
   const {
-    movingSpeedThreshold=1.0, maxSpeedCapKmh=120, minElevGain=1,
+    movingSpeedThreshold=1.0, maxSpeedCapKmh=80, minElevGain=1,
     useSmoothElevation=true, smoothWindow=5
   } = opts || {};
+  // NaN 가드
+  const speedCap = Number.isFinite(maxSpeedCapKmh) ? maxSpeedCapKmh : 80;
+  const moveThr  = Number.isFinite(movingSpeedThreshold) ? movingSpeedThreshold : 1.0;
 
   if(points.length<2){
     return { points:points.length, totalDistM:0, elapsedS:0, movingS:0, avgKmhElapsed:0, avgKmhMoving:0,
-      maxKmh:0, elevGainM:0, avgHr:null, maxHr:null, segments:[], firstLatLng:null, lastLatLng:null,
+      maxKmh:0, maxKmhSmooth:0, elevGainM:0, avgHr:null, maxHr:null, segments:[], firstLatLng:null, lastLatLng:null,
       hrTimeSum:0, hrTimeDen:0 };
   }
 
   // 고도 스무딩
-  let seArr=null;
   if(useSmoothElevation){
     const raw = points.map(p=>p.ele);
-    seArr = medianSmooth(raw, smoothWindow);
-    for(let i=0;i<points.length;i++){ if(Number.isFinite(seArr[i])) points[i].se = seArr[i]; else points[i].se = points[i].ele; }
+    const smoothed = medianSmooth(raw, smoothWindow);
+    for(let i=0;i<points.length;i++){ points[i].se = Number.isFinite(smoothed[i]) ? smoothed[i] : points[i].ele; }
   } else {
     for(const p of points) p.se = p.ele;
   }
 
   let totalDist=0, movingTime=0, maxSpeedMps=0, elevGain=0;
   let maxHr=null, hrTimeSum=0, hrTimeDen=0;
-  let pendingUp=0; // 누적 임계 버킷
+  let pendingUp=0;
 
   const segments=[];
   for(let i=0;i<points.length-1;i++){
@@ -192,24 +216,21 @@ function analyzePoints(points, opts){
 
     const d=haversine(p1.lat,p1.lon,p2.lat,p2.lon);
     const v=d/dt; const vKmh=v*3.6;
-    if(vKmh>maxSpeedCapKmh) continue;
+    if(vKmh>speedCap) continue;
 
     totalDist += d;
-    if(v>=movingSpeedThreshold) movingTime += dt;
+    if(v>=moveThr) movingTime += dt;
     if(v>maxSpeedMps) maxSpeedMps = v;
 
-    // ---- 누적 임계 상승 계산 (스무딩 고도 사용) ----
     if(Number.isFinite(p1.se) && Number.isFinite(p2.se)){
       const de = p2.se - p1.se;
       if(de > 0){ pendingUp += de; }
-      else if(de < 0){ pendingUp = Math.max(0, pendingUp + de); } // 내리막에 일부 상쇄
+      else if(de < 0){ pendingUp = Math.max(0, pendingUp + de); }
       if(pendingUp >= minElevGain){ elevGain += pendingUp; pendingUp = 0; }
     }
 
-    // 랩/세그먼트 표시용 상승(양수만)
     const segElevUp = (Number.isFinite(p1.se)&&Number.isFinite(p2.se)) ? Math.max(0, p2.se - p1.se) : 0;
 
-    // HR
     if(Number.isFinite(p1.hr)) maxHr = Math.max(maxHr ?? p1.hr, p1.hr);
     if(Number.isFinite(p2.hr)) maxHr = Math.max(maxHr ?? p2.hr, p2.hr);
     let hrAvg=null;
@@ -217,8 +238,6 @@ function analyzePoints(points, opts){
 
     segments.push({ lat1:p1.lat, lon1:p1.lon, lat2:p2.lat, lon2:p2.lon, d, dt, v, elevUp: segElevUp, hrAvg });
   }
-
-  // 남은 오르막 잔여분도 반영(소수 포함)
   if(pendingUp > 0) elevGain += pendingUp;
 
   const elapsedS=(points.at(-1).t - points[0].t)/1000;
@@ -233,6 +252,7 @@ function analyzePoints(points, opts){
     avgKmhElapsed: avgElapsed*3.6,
     avgKmhMoving:  avgMoving*3.6,
     maxKmh: maxSpeedMps*3.6,
+    maxKmhSmooth: maxSpeedKmhSmoothed(segments, 5),   // 5초 창 최대속도
     elevGainM: elevGain,
     avgHr, maxHr,
     segments,
@@ -304,14 +324,15 @@ elAnalyze.addEventListener("click", async ()=>{
     const files=selectedFiles.slice();
     if(!files.length){ toast("GPX 파일을 선택해 주세요"); return; }
 
-    const movingThreshold=parseFloat($("#movingThreshold").value || "1.0");
-    const lapDistanceKm=parseFloat($("#lapDistanceKm").value || "1");
-    const minElevGain=parseFloat($("#minElevGain").value || "1");
-    const maxSpeedCap=parseFloat($("#maxSpeedCap").value || "120");
-    const method=$("#calorieMethod").value;
-    const weightKg=parseFloat($("#weightKg").value);
-    const age=parseFloat($("#age").value);
-    const sex=$("#sex").value;
+    // 안전 파싱(+기본값)
+    const movingThreshold=numOr(parseFloat($("#movingThreshold").value), 1.0);
+    const lapDistanceKm  =numOr(parseFloat($("#lapDistanceKm").value),   1.0);
+    const minElevGain    =numOr(parseFloat($("#minElevGain").value),     1.0);
+    const maxSpeedCap    =numOr(parseFloat($("#maxSpeedCap").value),    80.0);
+    const method         =$("#calorieMethod").value;
+    const weightKg       =numOr(parseFloat($("#weightKg").value),        NaN);
+    const age            =numOr(parseFloat($("#age").value),             NaN);
+    const sex            =$("#sex").value;
     const useSmoothElevation = $("#useSmoothElevation").checked;
 
     tbodySummary.innerHTML=""; tbodyLaps.innerHTML=""; lastSummary=[]; lastLaps=[];
@@ -364,6 +385,8 @@ elAnalyze.addEventListener("click", async ()=>{
         });
       }
 
+      const displayMaxKmh = analysis.maxKmhSmooth ?? analysis.maxKmh;
+
       let caloriesKcal=null;
       if(method==="auto" && fileCalories!=null) caloriesKcal=fileCalories;
       else {
@@ -376,7 +399,7 @@ elAnalyze.addEventListener("click", async ()=>{
 
       // 합계 누적
       agg.points+=analysis.points; agg.distM+=analysis.totalDistM; agg.elapsedS+=analysis.elapsedS;
-      agg.movingS+=analysis.movingS; agg.elevM+=analysis.elevGainM; agg.maxKmh=Math.max(agg.maxKmh, analysis.maxKmh||0);
+      agg.movingS+=analysis.movingS; agg.elevM+=analysis.elevGainM; agg.maxKmh=Math.max(agg.maxKmh, displayMaxKmh || 0);
       if(analysis.maxHr!=null) agg.maxHr=Math.max(agg.maxHr ?? analysis.maxHr, analysis.maxHr);
       agg.hrTimeSum+=(analysis.hrTimeSum||0); agg.hrTimeDen+=(analysis.hrTimeDen||0);
       if(caloriesKcal!=null) agg.calories+=caloriesKcal;
@@ -385,7 +408,7 @@ elAnalyze.addEventListener("click", async ()=>{
         file:file.name, points:analysis.points, total_km:round(analysis.totalDistM/1000,3),
         elapsed:secToHMS(analysis.elapsedS), moving:secToHMS(analysis.movingS),
         avg_kmh_elapsed:round(analysis.avgKmhElapsed,2), avg_kmh_moving:round(analysis.avgKmhMoving,2),
-        max_kmh:round(analysis.maxKmh,2), avg_pace: paceMinPerKm(analysis.avgKmhElapsed),
+        max_kmh:round(displayMaxKmh,2), avg_pace: paceMinPerKm(analysis.avgKmhElapsed),
         elev_gain_m:round(analysis.elevGainM,1),
         avg_hr: analysis.avgHr? Math.round(analysis.avgHr):"",
         max_hr: analysis.maxHr? Math.round(analysis.maxHr):"",
