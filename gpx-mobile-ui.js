@@ -185,7 +185,6 @@ function analyzePoints(points, opts){
     movingSpeedThreshold=1.0, maxSpeedCapKmh=80, minElevGain=1,
     useSmoothElevation=true, smoothWindow=5
   } = opts || {};
-  // NaN 가드
   const speedCap = Number.isFinite(maxSpeedCapKmh) ? maxSpeedCapKmh : 80;
   const moveThr  = Number.isFinite(movingSpeedThreshold) ? movingSpeedThreshold : 1.0;
 
@@ -195,7 +194,6 @@ function analyzePoints(points, opts){
       hrTimeSum:0, hrTimeDen:0 };
   }
 
-  // 고도 스무딩
   if(useSmoothElevation){
     const raw = points.map(p=>p.ele);
     const smoothed = medianSmooth(raw, smoothWindow);
@@ -252,7 +250,7 @@ function analyzePoints(points, opts){
     avgKmhElapsed: avgElapsed*3.6,
     avgKmhMoving:  avgMoving*3.6,
     maxKmh: maxSpeedMps*3.6,
-    maxKmhSmooth: maxSpeedKmhSmoothed(segments, 5),   // 5초 창 최대속도
+    maxKmhSmooth: maxSpeedKmhSmoothed(segments, 5),
     elevGainM: elevGain,
     avgHr, maxHr,
     segments,
@@ -308,6 +306,104 @@ const toCSV=(rows)=>{ if(!rows.length) return ""; const headers=Object.keys(rows
 const downloadCSV=(filename,csv)=>{ const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}); const url=URL.createObjectURL(blob);
   const a=document.createElement("a"); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); };
 
+/* ===== 누적 이동거리 차트 ===== */
+let cumChart = null;
+const cumCard = document.getElementById("cumCard");
+const cumHint = document.getElementById("cumHint");
+const cumModeSel = document.getElementById("cumMode");
+
+function renderCumulativeChart(labels, cumValues) {
+  if (!window.Chart) return;
+  const ctx = document.getElementById("cumChart").getContext("2d");
+  const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.clientHeight || 300);
+  gradient.addColorStop(0, "rgba(18,184,134,0.35)");
+  gradient.addColorStop(1, "rgba(18,184,134,0.02)");
+  if (cumChart) { cumChart.destroy(); }
+  cumChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "누적 이동거리 (km)",
+        data: cumValues,
+        tension: 0.35,
+        fill: true,
+        backgroundColor: gradient,
+        borderColor: "#12b886",
+        borderWidth: 2,
+        pointRadius: 2.5,
+        pointHoverRadius: 4,
+        pointHitRadius: 12,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y.toFixed(2)} km` } }
+      },
+      scales: {
+        x: { ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 8 }, grid: { display: false } },
+        y: { title: { display: true, text: "거리(km)" }, ticks: { callback: v=>`${v} km` }, grid: { color: "rgba(0,0,0,.06)" } }
+      }
+    }
+  });
+  cumCard.style.display = labels.length ? "block" : "none";
+}
+
+/* 주간/월간 키 생성 (ISO 주) */
+function getISOWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2,"0")}`;
+}
+function getMonthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`;
+}
+
+/* 수집 데이터 → 라벨/누적값 생성 */
+function makeCumulativeSeries(items, mode) {
+  // items: [{label, date:ms, km, fileName}]
+  let groups = [];
+  if (mode === "file") {
+    // 파일별(시작시간 오름차순)
+    groups = items
+      .slice()
+      .sort((a,b)=> a.date - b.date)
+      .map(x => ({ key: x.date || 0, label: `${x.label}`, km: x.km }));
+  } else if (mode === "week") {
+    const map = new Map();
+    for (const it of items) {
+      const d = new Date(it.date || 0);
+      const key = getISOWeek(d);
+      map.set(key, (map.get(key)||0) + it.km);
+    }
+    groups = Array.from(map.entries())
+      .map(([key, km]) => ({ key, label: key, km }))
+      .sort((a,b) => (a.key > b.key ? 1 : -1));
+  } else if (mode === "month") {
+    const map = new Map();
+    for (const it of items) {
+      const d = new Date(it.date || 0);
+      const key = getMonthKey(d);
+      map.set(key, (map.get(key)||0) + it.km);
+    }
+    groups = Array.from(map.entries())
+      .map(([key, km]) => ({ key, label: key, km }))
+      .sort((a,b) => (a.key > b.key ? 1 : -1));
+  }
+  const labels = groups.map(g => g.label);
+  const cumulative = [];
+  let acc = 0;
+  for (const g of groups) { acc += g.km; cumulative.push(Number(acc.toFixed(3))); }
+  return { labels, cumulative, total: acc };
+}
+
 /* ===== UI / 상태 ===== */
 const openSheetBtn=$("#openSheetBtn"), closeSheetBtn=$("#closeSheetBtn"), sheet=$("#sheet");
 openSheetBtn.addEventListener("click",()=> sheet.classList.add("open"));
@@ -316,6 +412,7 @@ closeSheetBtn.addEventListener("click",()=> sheet.classList.remove("open"));
 const elAnalyze=$("#analyzeBtn"), elExportSummary=$("#exportSummaryBtn"), elExportLaps=$("#exportLapsBtn");
 const tbodySummary=$("#summaryTable tbody"), lapsSection=$("#lapsSection"), tbodyLaps=$("#lapsTable tbody");
 let lastSummary=[], lastLaps=[];
+let fileDistanceForChart = []; // {label, date(ms), km, fileName}
 
 /* ===== 분석 실행 ===== */
 elAnalyze.addEventListener("click", async ()=>{
@@ -324,7 +421,6 @@ elAnalyze.addEventListener("click", async ()=>{
     const files=selectedFiles.slice();
     if(!files.length){ toast("GPX 파일을 선택해 주세요"); return; }
 
-    // 안전 파싱(+기본값)
     const movingThreshold=numOr(parseFloat($("#movingThreshold").value), 1.0);
     const lapDistanceKm  =numOr(parseFloat($("#lapDistanceKm").value),   1.0);
     const minElevGain    =numOr(parseFloat($("#minElevGain").value),     1.0);
@@ -336,6 +432,7 @@ elAnalyze.addEventListener("click", async ()=>{
     const useSmoothElevation = $("#useSmoothElevation").checked;
 
     tbodySummary.innerHTML=""; tbodyLaps.innerHTML=""; lastSummary=[]; lastLaps=[];
+    fileDistanceForChart = [];
     sheet.classList.remove("open");
     showProgress("파일 파싱 준비 중…");
 
@@ -368,6 +465,7 @@ elAnalyze.addEventListener("click", async ()=>{
 
       if(map && bounds) drawTrackLayer(file.name, analysis, colorMode, bounds);
 
+      // 랩(1개 파일일 때만)
       if(files.length===1){
         const laps = makeDistanceLaps(analysis, lapDistanceKm, {
           method, fileCalories, totalElapsedS: analysis.elapsedS, weightKg, age, sex
@@ -387,6 +485,7 @@ elAnalyze.addEventListener("click", async ()=>{
 
       const displayMaxKmh = analysis.maxKmhSmooth ?? analysis.maxKmh;
 
+      // 칼로리
       let caloriesKcal=null;
       if(method==="auto" && fileCalories!=null) caloriesKcal=fileCalories;
       else {
@@ -421,6 +520,16 @@ elAnalyze.addEventListener("click", async ()=>{
                     <td>${sumRow.avg_kmh_moving}</td><td>${sumRow.max_kmh}</td><td>${sumRow.avg_pace}</td>
                     <td>${sumRow.elev_gain_m}</td><td>${sumRow.avg_hr}</td><td>${sumRow.max_hr}</td><td>${sumRow.calories_kcal}</td>`;
       $("#summaryTable tbody").appendChild(tr);
+
+      // 그래프용 데이터 수집
+      const startTime = points?.[0]?.t instanceof Date ? points[0].t : null;
+      const baseLabel = startTime
+        ? `${startTime.getFullYear()}-${String(startTime.getMonth()+1).padStart(2,"0")}-${String(startTime.getDate()).padStart(2,"0")}`
+        : "0000-00-00";
+      const label = `${baseLabel} · ${file.name}`;
+      fileDistanceForChart.push({
+        label, date: startTime ? +startTime : 0, km: (analysis.totalDistM||0)/1000, fileName: file.name
+      });
     }
 
     if(agg.elapsedS>0 || agg.distM>0){
@@ -445,6 +554,9 @@ elAnalyze.addEventListener("click", async ()=>{
       $("#summaryTable tbody").appendChild(trT);
     }
 
+    // 그래프 최초 렌더(파일별)
+    updateCumulativeChart("file");
+
     if(map && bounds && bounds.isValid()) map.fitBounds(bounds.pad(0.1));
     elExportSummary.disabled = lastSummary.length===0;
     elExportLaps.disabled = lastLaps.length===0 || lapsSection.style.display==="none";
@@ -452,6 +564,25 @@ elAnalyze.addEventListener("click", async ()=>{
 
   }catch(err){ console.error(err); hideProgress(); toast(`오류: ${err.message||err}`); }
 });
+
+/* 그래프 모드 변경 */
+cumModeSel?.addEventListener("change", ()=> {
+  const mode = cumModeSel.value || "file";
+  updateCumulativeChart(mode);
+});
+
+function updateCumulativeChart(mode="file") {
+  if (!fileDistanceForChart.length) { cumCard.style.display="none"; return; }
+  const { labels, cumulative, total } = makeCumulativeSeries(fileDistanceForChart, mode);
+  renderCumulativeChart(labels, cumulative);
+  if (labels.length) {
+    const first = labels[0].split(" · ")[0];
+    const last  = labels.at(-1).split(" · ")[0];
+    cumHint.textContent = `표시: ${mode.toUpperCase()}  ·  기간: ${first} ~ ${last}  ·  항목 ${labels.length}개  ·  총 ${total.toFixed(2)} km`;
+  } else {
+    cumHint.textContent = "";
+  }
+}
 
 /* ===== 내보내기 ===== */
 elExportSummary.addEventListener("click", ()=>{ const csv=toCSV(lastSummary); downloadCSV("gpx_summary.csv", csv); toast("요약 CSV 저장 완료"); });
