@@ -6,88 +6,41 @@
         content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
   <title>GPX 모바일 분석기</title>
 
-  <!-- Leaflet (SRI 제거) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
   <style>
-    :root {
-      --gap: 12px;
-      --radius: 14px;
-      --brand: #12b886;
-      --brand-ink: #0c7a5f;
-      --ink: #222;
-      --muted: #666;
-      --bg-soft: #f8f9fa;
-      --line: #e9ecef;
-    }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; background: #fff; color: var(--ink); }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; }
-
-    header { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid var(--line);
-      padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    header h1 { font-size: 18px; margin: 0; }
-    header .btn { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-soft); }
-
-    .container { padding: 12px 16px 100px; }
-
-    .toolbar { display:flex; gap:8px; align-items:center; }
-    .file-input { flex:1; min-width: 160px; padding:10px; border:1px dashed var(--line); border-radius: var(--radius); background:#fff; }
-    .btn { padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--radius); background:#fff; font-size: 16px; }
-    .btn.primary { background: var(--brand); color:#fff; border-color: var(--brand); }
-    .btn.ghost { background: var(--bg-soft); }
-    .btn.danger { background: #f03e3e; color:#fff; border-color:#f03e3e; }
-    .btn.block { width: 100%; }
-    .muted { color: var(--muted); font-size: 13px; }
-
-    #fileChips { display:flex; gap:8px; flex-wrap: wrap; margin-top: 8px; }
-    .chip { display:flex; align-items:center; gap:6px; padding:8px 12px; border:1px solid var(--line); border-radius:999px; background:#fff;
-      max-width:100%; box-shadow: 0 1px 1px rgba(0,0,0,.04); font-size: 14px; }
-    .chip span { max-width: 56vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .chip button { padding:6px 10px; border-radius:999px; border:1px solid var(--line); background:#fff; }
-
-    #map { height: 44vh; min-height: 320px; border-radius: var(--radius); overflow:hidden; border:1px solid var(--line); }
-    .map-toolbar { display:flex; gap:8px; margin-top: 8px; }
-
-    table { width:100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
-    th, td { border:1px solid var(--line); padding:10px; text-align: right; }
-    th { background:#fafafa; position: sticky; top: 54px; z-index: 5; }
-    td.left, th.left { text-align: left; }
-    tr.total-row { background: #eef8ff; font-weight: 600; }
-
-    .sheet { position: fixed; left: 0; right: 0; bottom: -100%; background: #fff; border-top-left-radius: 16px; border-top-right-radius: 16px;
-      box-shadow: 0 -8px 24px rgba(0,0,0,.15); transition: bottom .25s ease; max-height: 80vh; overflow: auto; padding: 16px;
-      border-top: 1px solid var(--line); z-index: 20; }
-    .sheet.open { bottom: 0; }
-    .sheet .grab { width: 44px; height: 5px; border-radius: 999px; background:#ddd; margin: 0 auto 10px; }
-    .row { display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-bottom: 10px; }
-    .row label { font-size: 14px; }
-    input[type="number"], select { width: 8.5rem; padding: 10px; border-radius: 10px; border:1px solid var(--line); font-size: 16px; background:#fff; }
-    .row .inline { display:flex; align-items:center; gap:8px; }
-
-    .fabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; background: rgba(255,255,255,.9); backdrop-filter: saturate(1.2) blur(6px);
-      border-top: 1px solid var(--line); padding: 10px 16px; display:flex; gap: 10px; }
-    .fabbar .btn { flex:1; font-weight: 600; }
-
-    .overlay { position: fixed; inset: 0; background: rgba(255,255,255,.7); display:none; align-items:center; justify-content:center; z-index: 30;
-      font-size: 16px; color:#000; }
-    .overlay.show { display:flex; }
-    .spinner { width: 28px; height:28px; border:3px solid #ddd; border-top-color: var(--brand); border-radius: 50%; animation: spin 1s linear infinite; margin-right: 10px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 84px; z-index: 40; background: #111; color:#fff; padding: 10px 12px;
-      border-radius: 10px; font-size: 14px; opacity:0; pointer-events:none; transition: opacity .2s ease; }
-    .toast.show { opacity: .96; }
-
-    @media (min-width: 768px) {
-      header h1 { font-size: 20px; }
-      input[type="number"], select { width: 10rem; }
-    }
+    :root { --gap: 12px; --radius: 14px; --brand: #12b886; --ink: #222; --muted:#666; --bg-soft:#f8f9fa; --line:#e9ecef; }
+    *{box-sizing:border-box} html,body{height:100%;background:#fff;color:var(--ink)} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif}
+    header{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    header h1{font-size:18px;margin:0} header .btn{padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--bg-soft)}
+    .container{padding:12px 16px 100px}
+    .toolbar{display:flex;gap:8px;align-items:center}
+    .file-input{flex:1;min-width:160px;padding:10px;border:1px dashed var(--line);border-radius:var(--radius);background:#fff}
+    .btn{padding:12px 16px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;font-size:16px}
+    .btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)} .btn.ghost{background:var(--bg-soft)} .btn.danger{background:#f03e3e;color:#fff;border-color:#f03e3e}
+    .muted{color:var(--muted);font-size:13px}
+    #fileChips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .chip{display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;max-width:100%;box-shadow:0 1px 1px rgba(0,0,0,.04);font-size:14px}
+    .chip span{max-width:56vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .chip button{padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:#fff}
+    #map{height:44vh;min-height:320px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--line)} .map-toolbar{display:flex;gap:8px;margin-top:8px}
+    table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px} th,td{border:1px solid var(--line);padding:10px;text-align:right}
+    th{background:#fafafa;position:sticky;top:54px;z-index:5} td.left,th.left{text-align:left} tr.total-row{background:#eef8ff;font-weight:600}
+    .sheet{position:fixed;left:0;right:0;bottom:-100%;background:#fff;border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -8px 24px rgba(0,0,0,.15);transition:bottom .25s ease;max-height:80vh;overflow:auto;padding:16px;border-top:1px solid var(--line);z-index:20}
+    .sheet.open{bottom:0} .sheet .grab{width:44px;height:5px;border-radius:999px;background:#ddd;margin:0 auto 10px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px} .row label{font-size:14px}
+    input[type="number"],select{width:8.5rem;padding:10px;border-radius:10px;border:1px solid var(--line);font-size:16px;background:#fff}
+    .fabbar{position:fixed;left:0;right:0;bottom:0;z-index:15;background:rgba(255,255,255,.9);backdrop-filter:saturate(1.2) blur(6px);border-top:1px solid var(--line);padding:10px 16px;display:flex;gap:10px}
+    .fabbar .btn{flex:1;font-weight:600}
+    .overlay{position:fixed;inset:0;background:rgba(255,255,255,.7);display:none;align-items:center;justify-content:center;z-index:30;font-size:16px;color:#000}
+    .overlay.show{display:flex} .spinner{width:28px;height:28px;border:3px solid #ddd;border-top-color:#12b886;border-radius:50%;animation:spin 1s linear infinite;margin-right:10px}@keyframes spin{to{transform:rotate(360deg)}}
+    .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:40;background:#111;color:#fff;padding:10px 12px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s ease}
+    .toast.show{opacity:.96}
   </style>
 </head>
 <body>
   <header>
-    <h1>사이클링 GPX 모바일 분석기</h1>
+    <h1>GPX 모바일 분석기</h1>
     <button id="openSheetBtn" class="btn">옵션</button>
   </header>
 
@@ -153,7 +106,7 @@
     </div>
   </div>
 
-  <!-- 바텀시트(옵션) -->
+  <!-- 옵션 바텀시트 -->
   <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
     <div class="grab"></div>
     <h3 id="sheetTitle" style="margin:4px 0 10px;">분석 옵션</h3>
@@ -170,7 +123,8 @@
         <input type="number" id="minElevGain" value="1" step="0.5" />
       </label>
       <label>속도 이상치 상한(km/h)
-        <input type="number" id="maxSpeedCap" value="120" step="5" />
+        <!-- 기본값 80 -->
+        <input type="number" id="maxSpeedCap" value="80" step="5" />
       </label>
     </div>
     <h4 style="margin:10px 0 0;">칼로리 옵션</h4>
@@ -197,15 +151,13 @@
         </select>
       </label>
     </div>
-    <div class="row inline">
+    <div class="row" style="align-items:center;">
       <input type="checkbox" id="useSmoothElevation" checked />
       <label for="useSmoothElevation">고도 스무딩 사용(권장)</label>
     </div>
-    <div class="row" style="justify-content:flex-end; margin-top:8px;">
+    <div class="row" style="justify-content:flex-end;">
       <button id="closeSheetBtn" class="btn">닫기</button>
     </div>
-    <div class="muted">* 설정은 즉시 저장되며 다음 분석 시 반영됩니다.</div>
-    <div style="height:12px;"></div>
   </div>
 
   <div class="fabbar" role="group" aria-label="기본 작업">
@@ -225,4 +177,3 @@
   <script type="module" src="./gpx-mobile-ui.js"></script>
 </body>
 </html>
-
