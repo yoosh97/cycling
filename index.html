@@ -13,16 +13,7 @@
     *{box-sizing:border-box} html,body{height:100%;background:#fff;color:var(--ink)}
     body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif}
     header{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-    header h1{font-size:18px;margin:0} 
-    header > div {
-      display: flex;
-      justify-content:space-between;
-      gap: 60px;
-    }
-    header p {
-      font-size: 12px;
-    }
-    header .btn{padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--bg-soft)}
+    header h1{font-size:18px;margin:0} header .btn{padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--bg-soft)}
     .container{padding:12px 16px 120px}
     .toolbar{display:flex;gap:8px;align-items:center}
     .file-input{flex:1;min-width:160px;padding:10px;border:1px dashed var(--line);border-radius:var(--radius);background:#fff}
@@ -70,11 +61,8 @@
 </head>
 <body>
   <header>
-    <h1>사이클링 GPX 모바일 분석기</h1>
-    <div>
-      <p>수정일: 2025-08-08</p>
-      <button id="openSheetBtn" class="btn">옵션</button>
-    </div>  
+    <h1>GPX 모바일 분석기</h1>
+    <button id="openSheetBtn" class="btn">옵션</button>
   </header>
 
   <div class="container">
@@ -211,4 +199,22 @@
   </div>
 
   <!-- 하단 액션바 / 진행 오버레이 / 토스트 -->
-  <div class=
+  <div class="fabbar" role="group" aria-label="기본 작업">
+    <button id="analyzeBtn" class="btn primary">분석</button>
+    <button id="exportSummaryBtn" class="btn" disabled>요약 CSV</button>
+    <button id="exportLapsBtn" class="btn" disabled>랩 CSV</button>
+  </div>
+
+  <div id="overlay" class="overlay" aria-live="polite">
+    <div class="spinner"></div>
+    <div><span id="progressText">처리 중…</span></div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script type="module" src="./gpx-mobile-ui.js"></script>
+</body>
+</html>
