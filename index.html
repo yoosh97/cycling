@@ -37,8 +37,7 @@
     }
 
     header {
-      position:relative
-      top: 0;
+      position: relative top: 0;
       z-index: 10;
       background: #fff;
       border-bottom: 1px solid var(--line);
@@ -384,7 +383,7 @@
   <header>
     <div>
       <h1>사이클링 GPX 모바일 분석기</h1>
-      <p>수정일자: 2025-08-08</p>
+      <p>수정일자: 2025-08-11</p>
     </div>
     <button id="openSheetBtn" class="btn">옵션</button>
   </header>
@@ -404,6 +403,8 @@
       <select id="colorMode" class="btn">
         <option value="speed" selected>속도 색상</option>
         <option value="hr">심박 색상</option>
+        <option value="power">파워 색상</option> <!-- 추가 -->
+        <option value="cad">케이던스 색상</option> <!-- 추가 -->
         <option value="mono">단색</option>
       </select>
     </div>
@@ -413,7 +414,7 @@
       <thead>
         <tr>
           <th class="left">파일</th>
-          <th>포인트</th>
+          <!-- <th>포인트</th> --> <!-- 삭제 -->
           <th>거리(km)</th>
           <th>경과시간</th>
           <th>이동시간</th>
@@ -425,6 +426,10 @@
           <th>평균심박</th>
           <th>최대심박</th>
           <th>칼로리</th>
+          <th>평균케이던스</th>
+          <th>최대케이던스</th>
+          <th>평균파워</th>
+          <th>최대파워</th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -447,6 +452,9 @@
       <div class="muted" id="cumHint"></div>
     </div>
 
+
+
+
     <!-- 랩(1개 파일일 때만) -->
     <div id="lapsSection" style="display:none;">
       <h2 style="margin-top:16px;">랩(스플릿)</h2>
@@ -461,7 +469,10 @@
             <th>구간페이스</th>
             <th>구간상승</th>
             <th>구간평균심박</th>
+            <th>구간평균케이던스</th>
+            <th>구간평균파워</th>
             <th>구간칼로리</th>
+
           </tr>
         </thead>
         <tbody></tbody>
@@ -538,8 +549,8 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script type="module" src="./gpx-mobile-ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <script type="module" src="./gpx-mobile-ui.js" defer></script>
 </body>
 
 </html>
