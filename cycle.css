@@ -1,5 +1,14 @@
 @charset "utf-8";
 
+@import url('https://fastly.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css');
+
+@font-face {
+    font-family: 'Galmuri11-Condensed';
+    src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/2506-1@1.0/Galmuri11-Condensed.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+}
+
 :root {
   --gap: 12px;
   --radius: 14px;
@@ -8,6 +17,24 @@
   --muted: #666;
   --bg-soft: #f8f9fa;
   --line: #e9ecef;
+}
+
+
+.monoton-regular {
+  font-family: "Monoton", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+}
+
+header h1 {
+  font-family: "Monoton", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+}
+header span {
+  font-family: Galmuri11-Condensed;
+  font-size: 25px;
+  color: #666;
 }
 
 * { box-sizing: border-box }
@@ -28,7 +55,7 @@ body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
 /* 헤더/컨테이너/기본 UI 스타일 유지 */
 header { position: relative; background: #fff; border-bottom: 1px solid var(--line); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; z-index: 10; }
 header > div { display: flex; flex-direction: column; gap: 10px; }
-header h1 { font-size: 24px; margin: 20px 0 10px; }
+header h1 { font-size: 60px; margin: 20px 0 10px; }
 header p { font-size: 14px; margin: 0; }
 
 /* 본문 */
