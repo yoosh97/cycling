@@ -612,6 +612,15 @@ function ensureMetricSheet() {
   sheet.querySelector("#metricClearBtn").addEventListener("click", () => setAndApply([]));
   sheet.querySelector("#metricCloseBtn").addEventListener("click", () => sheet.classList.remove("open"));
 }
+
+
+function closeSheetById(id) {
+  const sheet = document.getElementById(id);
+  sheet?.classList.remove("open");
+}
+document.getElementById("closeMetricSheetBtn")?.addEventListener("click", () => closeSheetById("metricSheet"));
+document.getElementById("closeSheetBtn")?.addEventListener("click", () => closeSheetById("sheet"));
+
 function injectMetricToolbar() {
   const tbl = document.getElementById("summaryTable");
   if (!tbl || document.getElementById("openMetricSheetBtn")) return;
