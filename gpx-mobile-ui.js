@@ -85,26 +85,29 @@ elClearBtn?.addEventListener("click", clearSelected); renderChips();
 
 /* ===== 지도 ===== */
 let map, layerControl, legendControl;
-const mapLayers = {};
-const colorModeSel = $("#colorMode"); const togglePanBtn = $("#togglePanBtn"); let panEnabled = false;
+const mapLayers = {}; 
+const colorModeSel = $("#colorMode");
+const togglePanBtn = $("#togglePanBtn");
+let panEnabled = false;
 
-function ensureColorModeOptions() {
+/* function ensureColorModeOptions() {
   if (!colorModeSel) return;
   const values = Array.from(colorModeSel.options || []).map(o => o.value);
   const addOpt = (v, t) => { const o = document.createElement("option"); o.value = v; o.textContent = t; colorModeSel.appendChild(o); };
   if (!values.includes("power")) addOpt("power", "파워 색상");
   if (!values.includes("cad")) addOpt("cad", "케이던스 색상");
 }
-ensureColorModeOptions();
+ensureColorModeOptions(); */
 
 function initMap() {
-  if (!window.L) { console.warn("Leaflet 로드 실패"); return; }
+  if (!window.L) return console.warn("Leaflet 로드 실패");
   map = L.map('map', { zoomControl: true, dragging: false, scrollWheelZoom: false, touchZoom: false, tap: false });
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
   layerControl = L.control.layers({ OpenStreetMap: osm }, {}, { collapsed: true }).addTo(map);
   map.setView([36.5, 127.8], 7);
 }
 initMap();
+
 function setMapPan(enabled) {
   panEnabled = !!enabled; if (!map) return;
   map.dragging[enabled ? "enable" : "disable"](); map.scrollWheelZoom[enabled ? "enable" : "disable"](); map.touchZoom[enabled ? "enable" : "disable"]();
@@ -570,13 +573,13 @@ function ensureMetricSheet() {
     <div id="metricList" class="row" style="gap:10px;align-items:flex-start;"></div>
     <div class="row" style="justify-content:space-between;">
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button id="metricAllBtn" class="btn ghost">전체</button>
-        <button id="metricBasicBtn" class="btn ghost">기본</button>
-        <button id="metricPowerBtn" class="btn ghost">파워·NP</button>
-        <button id="metricClearBtn" class="btn ghost">모두 숨김</button>
+        <button id="metricAllBtn" class="btn btn-secondary">전체</button>
+        <button id="metricBasicBtn" class="btn btn-secondary">기본</button>
+        <button id="metricPowerBtn" class="btn btn-secondary">파워·NP</button>
+        <button id="metricClearBtn" class="btn btn-secondary">모두 숨김</button>
       </div>
       <div style="display:flex;gap:8px;">
-        <button id="metricCloseBtn" class="btn">닫기</button>
+        <button id="metricCloseBtn" class="btn btn-secondary">닫기</button>
       </div>
     </div>`;
   document.body.appendChild(sheet);
@@ -615,9 +618,9 @@ function injectMetricToolbar() {
   const bar = document.createElement("div");
   bar.className = "chart-toolbar"; bar.style.marginTop = "6px"; bar.style.justifyContent = "flex-end";
   bar.innerHTML = `
-    <button id="openMetricSheetBtn" class="btn">지표 선택</button>
-    <button id="metricShowAllBtn" class="btn ghost">전체보기</button>
-    <button id="metricShowBasicBtn" class="btn ghost">기본</button>`;
+    <button id="openMetricSheetBtn" class="btn btn-secondary">지표 선택</button>
+    <button id="metricShowAllBtn" class="btn btn-secondary">전체보기</button>
+    <button id="metricShowBasicBtn" class="btn btn-secondary">기본</button>`;
   tbl.parentNode.insertBefore(bar, tbl);
 
   document.getElementById("openMetricSheetBtn").addEventListener("click", () => { ensureMetricSheet(); document.getElementById("metricSheet").classList.add("open"); });
