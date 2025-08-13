@@ -1,410 +1,44 @@
 <!DOCTYPE html>
 <html lang="ko">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
-  <title>GPX 모바일 분석기</title>
+  <title>사이클링 주행 기록 분석</title>
 
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
-  <style>
-    :root {
-      --gap: 12px;
-      --radius: 14px;
-      --brand: #12b886;
-      --ink: #222;
-      --muted: #666;
-      --bg-soft: #f8f9fa;
-      --line: #e9ecef;
-    }
-
-    * {
-      box-sizing: border-box
-    }
-
-    html,
-    body {
-      height: 100%;
-      background: #fff;
-      color: var(--ink)
-    }
-
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif
-    }
-
-    header {
-      position: relative top: 0;
-      z-index: 10;
-      background: #fff;
-      border-bottom: 1px solid var(--line);
-      padding: 12px 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-
-    header>div {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    header p {
-      font-size: 14px;
-      margin: 0;
-    }
-
-    header h1 {
-      font-size: 24px;
-      margin-top: 20px;
-      margin-bottom: 10px;
-    }
-
-    /* header .btn {
-      width: 180px; 
-      padding:10px 14px;
-      border-radius:10px;
-      border:1px solid var(--line);
-      background:var(--bg-soft)
-    } */
-    header .btn {
-      width: 100px;
-      padding: 15px 20px;
-      background-color: #26633d;
-      color: white;
-      border: none;
-      border-radius: 15px;
-      font-size: 16px;
-      cursor: pointer;
-
-      /* 그림자 효과 */
-      box-shadow: 0 10px 10px rgba(0, 0, 0, 0.3);
-      transition: box-shadow 0.3s ease;
-    }
-
-    /* 마우스 호버 시 그림자 강조 */
-    .header .btn:hover {
-      box-shadow: 0 6px 10px rgba(0, 0, 0, 0.3);
-    }
-
-
-
-    .container {
-      padding: 12px 16px 120px
-    }
-
-    .toolbar {
-      display: flex;
-      gap: 8px;
-      align-items: center
-    }
-
-    .file-input {
-      flex: 1;
-      min-width: 160px;
-      padding: 10px;
-      border: 1px dashed var(--line);
-      border-radius: var(--radius);
-      background: #fff
-    }
-
-    .btn {
-      padding: 12px 16px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: #fff;
-      font-size: 16px
-    }
-
-    .btn.primary {
-      background: var(--brand);
-      color: #fff;
-      border-color: var(--brand)
-    }
-
-    .btn.ghost {
-      background: var(--bg-soft)
-    }
-
-    .btn.danger {
-      background: #f03e3e;
-      color: #fff;
-      border-color: #f03e3e
-    }
-
-    .muted {
-      color: var(--muted);
-      font-size: 13px
-    }
-
-    #fileChips {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 8px
-    }
-
-    .chip {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 12px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: #fff;
-      max-width: 100%;
-      box-shadow: 0 1px 1px rgba(0, 0, 0, .04);
-      font-size: 14px
-    }
-
-    .chip span {
-      max-width: 56vw;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap
-    }
-
-    .chip button {
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: #fff
-    }
-
-    #map {
-      height: 44vh;
-      min-height: 320px;
-      border-radius: var(--radius);
-      overflow: hidden;
-      border: 1px solid var(--line)
-    }
-
-    .map-toolbar {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 12px;
-      font-size: 14px
-    }
-
-    th,
-    td {
-      border: 1px solid var(--line);
-      padding: 10px;
-      text-align: right
-    }
-
-    th {
-      background: #fafafa;
-      position: sticky;
-      top: 54px;
-      z-index: 5
-    }
-
-    td.left,
-    th.left {
-      text-align: left
-    }
-
-    tr.total-row {
-      background: #eef8ff;
-      font-weight: 600
-    }
-
-    /* 그래프 카드 */
-    .card {
-      margin-top: 16px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 12px;
-      background: #fff;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, .04);
-    }
-
-    .card h3 {
-      margin: 4px 0 8px;
-      font-size: 16px;
-    }
-
-    .chart-toolbar {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      justify-content: flex-end;
-      margin-bottom: 6px;
-    }
-
-    .chart-wrap {
-      position: relative;
-      height: 300px;
-    }
-
-    @media (min-width:768px) {
-      .chart-wrap {
-        height: 360px;
-      }
-    }
-
-    .sheet {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: -100%;
-      background: #fff;
-      border-top-left-radius: 16px;
-      border-top-right-radius: 16px;
-      box-shadow: 0 -8px 24px rgba(0, 0, 0, .15);
-      transition: bottom .25s ease;
-      max-height: 80vh;
-      overflow: auto;
-      padding: 16px;
-      border-top: 1px solid var(--line);
-      z-index: 20
-    }
-
-    .sheet.open {
-      bottom: 0
-    }
-
-    .sheet .grab {
-      width: 44px;
-      height: 5px;
-      border-radius: 999px;
-      background: #ddd;
-      margin: 0 auto 10px
-    }
-
-    .row {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-bottom: 10px
-    }
-
-    .row label {
-      font-size: 14px
-    }
-
-    input[type="number"],
-    select {
-      width: 8.5rem;
-      padding: 10px;
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      font-size: 16px;
-      background: #fff
-    }
-
-    .fabbar {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 15;
-      background: rgba(255, 255, 255, .9);
-      backdrop-filter: saturate(1.2) blur(6px);
-      border-top: 1px solid var(--line);
-      padding: 10px 16px;
-      display: flex;
-      gap: 10px
-    }
-
-    .fabbar .btn {
-      flex: 1;
-      font-weight: 600
-    }
-
-    .overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(255, 255, 255, .7);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 30;
-      font-size: 16px;
-      color: #000
-    }
-
-    .overlay.show {
-      display: flex
-    }
-
-    .spinner {
-      width: 28px;
-      height: 28px;
-      border: 3px solid #ddd;
-      border-top-color: #12b886;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin-right: 10px
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg)
-      }
-    }
-
-    .toast {
-      position: fixed;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: 84px;
-      z-index: 40;
-      background: #111;
-      color: #fff;
-      padding: 10px 12px;
-      border-radius: 10px;
-      font-size: 14px;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .2s ease
-    }
-
-    .toast.show {
-      opacity: .96
-    }
-  </style>
+  <link rel="stylesheet" href="reset.css">
+  <link rel="stylesheet" href="cycle.css">  
 </head>
 
 <body>
   <header>
     <div>
-      <h1>사이클링 GPX 모바일 분석기</h1>
-      <p>수정일자: 2025-08-11</p>
+      <h1>사이클링 주행 기록 분석</h1>
+      <p>수정일자: 2025-08-13</p>
     </div>
-    <button id="openSheetBtn" class="btn">옵션</button>
+    <button id="openSheetBtn" class="btn btn-info">옵션</button>
   </header>
 
   <div class="container">
     <div class="toolbar" style="margin-bottom:8px;">
       <input type="file" id="gpxFiles" accept=".gpx" multiple class="file-input" />
-      <button id="addFilesBtn" type="button" class="btn primary">파일 추가</button>
-      <button id="clearFilesBtn" type="button" class="btn danger">초기화</button>
+      <button id="addFilesBtn" type="button" class="btn btn-primary">파일 추가</button>
+      <button id="clearFilesBtn" type="button" class="btn btn-danger">초기화</button>
     </div>
+
     <div id="fileChips" aria-live="polite"></div>
     <div class="muted">여러 폴더에서 연속 선택하려면 <b>파일 추가</b>를 여러 번 누르세요.</div>
 
     <div id="map" aria-label="활동 경로 지도"></div>
     <div class="map-toolbar">
-      <button id="togglePanBtn" class="btn ghost">지도 이동: 꺼짐</button>
+      <button id="togglePanBtn" class="btn btn-light">지도 이동: 꺼짐</button>
       <select id="colorMode" class="btn">
         <option value="speed" selected>속도 색상</option>
         <option value="hr">심박 색상</option>
-        <option value="power">파워 색상</option> <!-- 추가 -->
-        <option value="cad">케이던스 색상</option> <!-- 추가 -->
+        <option value="power">파워 색상</option>
+        <option value="cad">케이던스 색상</option>
         <option value="mono">단색</option>
       </select>
     </div>
@@ -414,7 +48,6 @@
       <thead>
         <tr>
           <th class="left">파일</th>
-          <!-- <th>포인트</th> --> <!-- 삭제 -->
           <th>거리(km)</th>
           <th>경과시간</th>
           <th>이동시간</th>
@@ -435,7 +68,6 @@
       <tbody></tbody>
     </table>
 
-    <!-- 누적 이동거리 그래프 카드 -->
     <div class="card" id="cumCard" style="display:none;">
       <div class="chart-toolbar">
         <label for="cumMode" class="muted">표시: </label>
@@ -452,10 +84,6 @@
       <div class="muted" id="cumHint"></div>
     </div>
 
-
-
-
-    <!-- 랩(1개 파일일 때만) -->
     <div id="lapsSection" style="display:none;">
       <h2 style="margin-top:16px;">랩(스플릿)</h2>
       <table id="lapsTable">
@@ -472,7 +100,6 @@
             <th>구간평균케이던스</th>
             <th>구간평균파워</th>
             <th>구간칼로리</th>
-
           </tr>
         </thead>
         <tbody></tbody>
@@ -480,70 +107,111 @@
     </div>
   </div>
 
-  <!-- 옵션 바텀시트 -->
-  <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
-    <div class="grab"></div>
-    <h3 id="sheetTitle" style="margin:4px 0 10px;">분석 옵션</h3>
-    <div class="row">
-      <label>이동임계속도(m/s)
-        <input type="number" id="movingThreshold" value="1.0" step="0.1" />
-      </label>
-      <label>랩 거리(km)
-        <input type="number" id="lapDistanceKm" value="1" step="0.5" />
-      </label>
-    </div>
-    <div class="row">
-      <label>고도 상승 최소(m)
-        <input type="number" id="minElevGain" value="1" step="0.5" />
-      </label>
-      <label>속도 이상치 상한(km/h)
-        <input type="number" id="maxSpeedCap" value="80" step="5" />
-      </label>
-    </div>
-    <h4 style="margin:10px 0 0;">칼로리 옵션</h4>
-    <div class="row">
-      <label>계산 방식
-        <select id="calorieMethod">
-          <option value="auto" selected>Auto(파일값→HR→MET)</option>
-          <option value="hr">HR 기반(키텔식)</option>
-          <option value="met">속도(MET) 기반</option>
-          <option value="none">계산 안 함</option>
-        </select>
-      </label>
-      <label>체중(kg)
-        <input type="number" id="weightKg" placeholder="예: 70" step="0.1" />
-      </label>
-      <label>나이
-        <input type="number" id="age" placeholder="예: 40" />
-      </label>
-      <label>성별
-        <select id="sex">
-          <option value="">선택</option>
-          <option value="male">남</option>
-          <option value="female">여</option>
-        </select>
-      </label>
-    </div>
-    <!-- FTP (왓트) 입력 -->
-    <div class="row">
-      <label for="ftpW" class="muted" style="min-width:110px;">FTP (W)</label>
-      <input id="ftpW" type="number" class="input" inputmode="numeric" min="50" max="600" step="1" placeholder="예: 250"
-        style="max-width:140px;">
-      <div class="muted" style="font-size:12px;">NP/IF/TSS 계산에 사용됩니다.</div>
-    </div>
+<!-- 옵션 바텀시트 -->
+<div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="grab"></div>
+  <h3 id="sheetTitle" style="margin:4px 0 10px;">분석 옵션</h3>
 
-    <div class="row" style="align-items:center;">
-      <input type="checkbox" id="useSmoothElevation" checked />
-      <label for="useSmoothElevation">고도 스무딩 사용(권장)</label>
-    </div>
-    <div class="row" style="justify-content:flex-end;">
-      <button id="closeSheetBtn" class="btn">닫기</button>
-    </div>
+  <div class="opt-row">
+    <label>이동임계속도(m/s)
+      <input type="number" id="movingThreshold" value="1.0" step="0.1" />
+    </label>
+    <label>랩 거리(km)
+      <input type="number" id="lapDistanceKm" value="1" step="0.5" />
+    </label>
   </div>
 
-  <!-- 하단 액션바 / 진행 오버레이 / 토스트 -->
+  <div class="opt-row">
+    <label>고도 상승 최소(m)
+      <input type="number" id="minElevGain" value="1" step="0.5" />
+    </label>
+    <label>속도 이상치 상한(km/h)
+      <input type="number" id="maxSpeedCap" value="80" step="5" />
+    </label>
+  </div>
+
+  <h4 style="margin:10px 0 0;">칼로리 옵션</h4>
+  <div class="opt-row">
+    <label>계산 방식
+      <select id="calorieMethod">
+        <option value="auto" selected>Auto(파일값→HR→MET)</option>
+        <option value="hr">HR 기반(키텔식)</option>
+        <option value="met">속도(MET) 기반</option>
+        <option value="none">계산 안 함</option>
+      </select>
+    </label>
+    <label>체중(kg)
+      <input type="number" id="weightKg" placeholder="예: 70" step="0.1" />
+    </label>
+    <label>나이
+      <input type="number" id="age" placeholder="예: 40" />
+    </label>
+    <label>성별
+      <select id="sex">
+        <option value="">선택</option>
+        <option value="male">남</option>
+        <option value="female">여</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="opt-row">
+    <label>FTP (W)
+      <input id="ftpW" type="number" inputmode="numeric" min="50" max="600" step="1" placeholder="예: 250">
+    </label>
+    <div class="muted" style="font-size:12px;">NP/IF/TSS 계산에 사용됩니다.</div>
+  </div>
+
+  <div class="opt-row" style="align-items:center;">
+    <input type="checkbox" id="useSmoothElevation" checked />
+    <label for="useSmoothElevation">고도 스무딩 사용(권장)</label>
+  </div>
+
+  <div class="opt-row" style="justify-content:flex-end;">
+    <button id="closeSheetBtn" class="btn btn-secondary">닫기</button>
+  </div>
+</div>
+
+
+<div id="metricSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="metricSheetTitle">
+  <div class="grab"></div>
+  <h3 id="metricSheetTitle" style="margin:4px 0 10px;">표시할 지표 선택</h3>
+
+  <div class="opt-row">
+    <label><input type="checkbox" value="distance" checked /> 거리(km)</label>
+    <label><input type="checkbox" value="elapsed" checked /> 경과시간</label>
+    <label><input type="checkbox" value="moving" checked /> 이동시간</label>
+    <label><input type="checkbox" value="avg_speed_elapsed" checked /> 평균속도(경과)</label>
+    <label><input type="checkbox" value="avg_speed_moving" checked /> 평균속도(이동)</label>
+    <label><input type="checkbox" value="max_speed" checked  /> 최대속도</label>
+    <label><input type="checkbox" value="avg_pace" checked  /> 평균페이스</label>
+  </div>
+
+  <div class="opt-row">
+    <label><input type="checkbox" value="total_ascent" checked  /> 누적상승</label>
+    <label><input type="checkbox" value="avg_hr"  checked /> 평균심박</label>
+    <label><input type="checkbox" value="max_hr" checked  /> 최대심박</label>
+    <label><input type="checkbox" value="calories" checked  /> 칼로리</label>
+    <label><input type="checkbox" value="avg_cad" checked  /> 평균케이던스</label>
+    <label><input type="checkbox" value="max_cad" checked /> 최대케이던스</label>
+  </div>
+
+  <div class="opt-row">
+    <label><input type="checkbox" value="avg_power"  checked /> 평균파워</label>
+    <label><input type="checkbox" value="max_power" checked /> 최대파워</label>
+    <label><input type="checkbox" value="np" checked /> NP</label>
+    <label><input type="checkbox" value="if" checked /> IF</label>
+    <label><input type="checkbox" value="tss" checked /> TSS</label>
+  </div>
+
+  <div class="opt-row" style="justify-content:flex-end;">
+    <button id="closeMetricSheetBtn" class="btn btn-secondary">닫기</button>
+  </div>
+</div>
+
+
   <div class="fabbar" role="group" aria-label="기본 작업">
-    <button id="analyzeBtn" class="btn primary">분석</button>
+    <button id="analyzeBtn" class="btn btn-primary">분석</button>
     <button id="exportSummaryBtn" class="btn" disabled>요약 CSV</button>
     <button id="exportLapsBtn" class="btn" disabled>랩 CSV</button>
   </div>
@@ -556,9 +224,9 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script type="module" src="./gpx-mobile-ui.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
+  
 </body>
-
 </html>
