@@ -1313,5 +1313,3 @@ elExportLaps?.addEventListener("click", () => {
   if (!lastLaps.length) { toast("랩 데이터가 없습니다"); return; }
   const csv = toCSV(lastLaps); downloadCSV("gpx_laps.csv", csv); toast("랩 CSV 저장 완료");
 });
-
-
