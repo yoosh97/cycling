@@ -44,8 +44,13 @@ header p { font-size: 14px; margin: 0; }
 #metricSheet .opt-row {
   composes: flex-wrap-row;
 }
-
+#fileCountLabel.muted { 
+  color:var(--muted); 
+  font-size:16px;
+  font-weight: 500;
+}
 .muted { color:var(--muted); font-size:13px }
+
 #fileChips { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px }
 .chip { display:flex; align-items:center; gap:6px; padding:8px 12px; border:1px solid var(--line); border-radius:999px; background:#fff; max-width:100%; box-shadow:0 1px 1px rgba(0,0,0,.04); font-size:14px }
 .chip span { max-width:56vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
@@ -181,4 +186,120 @@ input[type="number"], select {
   margin:0;
   width:16px;
   height:16px;
+}
+
+
+
+.toolbar input[type="file"].file-input {
+  /* 필드 박스 제거 */
+  width: auto !important;          /* ⬅ 폭 자동: 버튼 크기만 */
+  padding: 0 !important;           /* ⬅ 필드 패딩 제거 */
+  border: 0 !important;            /* ⬅ 테두리 제거 */
+  background: transparent !important; /* ⬅ 배경 제거 */
+  box-shadow: none !important;
+
+  /* 네이티브 텍스트 숨김 */
+  color: transparent !important;
+  caret-color: transparent;
+  text-shadow: none;
+}
+
+input[type="file"].file-input:hover {
+  background: #ecfff0;
+  border-color: #2e7d32;
+  box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.15);
+}
+
+
+/* 포커스시 박스 그림자/외곽선도 제거 */
+.toolbar input[type="file"].file-input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* 실제 버튼 스타일(유지/원하는대로) */
+.toolbar input[type="file"].file-input::file-selector-button {
+  margin-right: 12px;
+  padding: 0.75rem 1.1rem;
+  border: none;
+  border-radius: 10px;
+  background: #2e7d32;
+  color: #fff;
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform .06s ease, filter .2s ease, box-shadow .2s ease;
+  box-shadow: 0 6px 16px rgba(46,125,50,.28);
+}
+
+.toolbar input[type="file"].file-input:hover::file-selector-button {
+  filter: brightness(1.05);
+  box-shadow: 0 8px 18px rgba(46,125,50,.35);
+}
+.toolbar input[type="file"].file-input:active::file-selector-button {
+  transform: translateY(1px);
+}
+
+/* 비활성화 상태 */
+input[type="file"].file-input:disabled,
+input[type="file"].file-input:disabled::file-selector-button {
+  cursor: not-allowed;
+  filter: grayscale(0.3) opacity(0.7);
+}
+
+/* 인풋 오른쪽 상태 라벨 */
+#fileCountLabel {
+  margin-left: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  align-self: center;
+}
+
+/* 툴바에서 한 줄 정렬이 안 되면 추가 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap; /* 창이 좁을 때 줄바꿈 */
+}
+/* .file-row{
+  display:flex;
+  align-items:center;
+  gap:12px;
+} */
+
+/* 다크 모드 대응(선택) */
+@media (prefers-color-scheme: dark) {
+  input[type="file"].file-input {
+    background: #0f1712;
+    border-color: #3fa55a;
+    color: #d7f5df;
+  }
+  input[type="file"].file-input:hover {
+    background: #122017;
+    box-shadow: 0 0 0 4px rgba(63, 165, 90, 0.18);
+  }
+  input[type="file"].file-input::file-selector-button {
+    background: #3fa55a;
+    color: #061009;
+    box-shadow: 0 8px 20px rgba(63, 165, 90, 0.28);
+  }
+}
+
+
+.midTitle {
+    font-size: 24px;
+    line-height: 1;
+    border-left: 6px solid #f00;
+    padding-left: 10px;
+    transition: all 0.3s;
+}
+
+.chartTitle {
+    font-size: 20px;
+    line-height: 1;
+    text-align: center;
+    margin:0 auto 6px;
+    
 }
