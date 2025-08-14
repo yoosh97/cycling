@@ -815,8 +815,9 @@ elevCard.innerHTML = `
       <option value="month">월간(YYYY-MM)</option>
     </select>
   </div>
-  <h3>🏔 누적 상승고도</h3>
-  <div class="chart-wrap">
+  
+  <div class="chart-wrap" style="margin-top:30px;">
+    <h3 class="chartTitle">Cumulative Elevation Gain</h3>
     <canvas id="elevChart"></canvas>
   </div>
   <div class="muted" id="elevHint"></div>`;
