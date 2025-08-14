@@ -56,11 +56,11 @@ header h1 {
 
 header span {
   font-family: Galmuri11-Condensed;
-  font-size: 25px;
+  font-size: 20px;
   color: #666;
+  display: none;
 }
-header p {
-  
+header p {  
   font-size: 12px;
   color: #666;
   text-align: right;
@@ -186,7 +186,7 @@ body {
   padding: 6px 10px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: #fff
+  background: #ecebeb
 }
 
 #map {
@@ -244,10 +244,10 @@ tr.total-row {
   box-shadow: 0 4px 16px rgba(0, 0, 0, .04)
 }
 
-.card h3 {
+/* .card h3 {
   margin: 4px 0 8px;
   font-size: 16px
-}
+} */
 
 .chart-toolbar {
   display: flex;
@@ -285,31 +285,20 @@ header {
 
 /* ≥768px */
 @media (min-width: 768px) {
-  header {
-    max-width: 720px;
-  }
-
-  .chart-wrap {
-    height: 360px;
-  }
-
-  header h1 {
-    font-size: 60px;
-  }
+  header {max-width: 720px;}
+  .chart-wrap {height: 360px;}
+  header h1 {font-size: 60px;}
 }
 
 /* ≥992px */
 @media (min-width: 992px) {
-  header {
-    max-width: 960px;
-  }
+  header {max-width: 960px;}
+  header span {display: block;}
 }
 
 /* ≥1200px */
 @media (min-width: 1200px) {
-  header {
-    max-width: 1296px;
-  }
+  header {max-width: 1296px;}
 }
 
 
@@ -685,7 +674,7 @@ input[type="file"].file-input:disabled::file-selector-button {
   transition: all 0.3s;
 }
 
-.chartTitle {
+/* .chartTitle {
   font-family: "Oswald", sans-serif;
   font-weight: 700;
   font-size: 22px;
@@ -694,4 +683,39 @@ input[type="file"].file-input:disabled::file-selector-button {
   text-align: center;
   margin: 0 auto 6px;
 
+} */
+
+.chartTitle {
+  position: absolute;
+  top: -50px; /* 캔버스보다 위에 뜨게 */
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  font-weight: bold;
+  z-index: 10;
+  background: white;
+  color: #313131cc;
+  padding: 2px 12px;
+  border-radius: 4px;
+}
+
+
+.chartTitle::before,
+.chartTitle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 40px;
+  height: 2px;
+  background: linear-gradient(to right, #2f80ed, #21c36f);
+}
+
+.chartTitle::before {
+  left: -50px;
+  transform: translateY(-50%);
+}
+
+.chartTitle::after {
+  right: -50px;
+  transform: translateY(-50%);
 }
