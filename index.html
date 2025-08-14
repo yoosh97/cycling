@@ -1,270 +1,721 @@
-<!DOCTYPE html>
-<html lang="ko">
+@charset "utf-8";
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
-  <title>VeloStats – 사이클링 분석</title>
+@import url('https://fastly.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css');
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Monoton&display=swap" rel="stylesheet">
+@font-face {
+  font-family: 'Galmuri11-Condensed';
+  src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/2506-1@1.0/Galmuri11-Condensed.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
 
-  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@200..700&display=swap" rel="stylesheet">
+@font-face {
+    font-family: 'Paperlogy-8ExtraBold';
+    src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8ExtraBold.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'JalnanGothic';
+    src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_231029@1.1/JalnanGothic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+}
+
+:root {
+  --gap: 12px;
+  --radius: 10px;
+  --brand: #12b886;
+  --ink: #222;
+  --muted: #666;
+  --bg-soft: #f8f9fa;
+  --line: #e9ecef;
+}
+
+/* 헤더/컨테이너/기본 UI 스타일 유지 */
+header {
+  position: relative;
+  display: flex;
+  align-items: flex-end; /* 세로 아래 정렬 */
+  justify-content: space-between;  
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  padding: 12px 16px;  
+  gap: 8px;
+  z-index: 10;
+}
+
+header h1 {
+  width: 70%;
+  font-family: "Monoton", sans-serif;
+  font-weight: 400;
+  color: red;
+  font-style: normal;
+}
+
+header span {
+  font-family: Galmuri11-Condensed;
+  font-size: 20px;
+  color: #666;
+  display: none;
+}
+header p {  
+  font-size: 12px;
+  color: #666;
+  text-align: right;
+  align-items:baseline ;
+  line-height: 100%;
+}
+
+* {
+  box-sizing: border-box
+}
+
+html,
+body {
+  height: 100%;
+  background: #fff;
+  color: var(--ink)
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif
+}
+
+/* 공통 Flex Row 스타일 클래스 */
+.flex-wrap-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 10px;
+}
 
 
 
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet"
-    integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="reset.css">
-  <link rel="stylesheet" href="cycle.css?v=20250814">
-</head>
-
-<body>
-  <header>
-    
-      <h1>VeloStats<span> ... 사이클링 분석</span></h1>
-      <p>수정일자: 2025-08-13</p>
-    
-  </header>
-
-  <div class="container">
-    <div class="toolbar" style="margin-bottom:8px;">
-      <!-- <a id="downloadSample" class="sample-link" href="#">[gpx 샘플 파일 받기]</a> -->
-      
-      <input type="file" id="gpxFiles" accept=".gpx" multiple class="file-input" />
-      <a id="downloadSample" href="#" class="sample-link link-primary link-offset-2 link-underline-opacity-25 link-underline-opacity-100-hover">[gpx 샘플 파일 받기]</a>
-      <button id="addFilesBtn" type="button" class="btn btn-primary">파일 추가</button>
-      <button id="clearFilesBtn" type="button" class="btn btn-danger">초기화</button>
-  </div>
 
 
+
+/* 본문 */
+.container {
+  padding: 12px 16px 120px
+}
+
+/* .toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center
+} */
+
+.toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;        /* 요소 간격 */
+  flex-wrap: wrap;  /* 창이 좁으면 줄바꿈 */
+}
+
+.file-input {
+  flex: 1;
+  min-width: 160px;
+  padding: 10px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+
+/* #fileCountLabel.muted {
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 500;
+} */
+#fileCountLabel {
+  position: absolute;
+  left: 100px;top: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  align-self: center;
+}
+
+/* 예시: 공통 Flex Row 클래스 적용 예 */
+.sheet .opt-row,
+#metricSheet .opt-row {
+  composes: flex-wrap-row;
+}
+
+
+
+.muted {
+  color: var(--muted);
+  font-size: 13px
+}
+
+#fileChips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  max-width: 100%;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .04);
+  font-size: 14px
+}
+
+.chip span {
+  max-width: 56vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap
+}
+
+.chip button {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #ecebeb
+}
+
+#map {
+  height: 44vh;
+  min-height: 320px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--line)
+}
+
+.map-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 14px
+}
+
+th,
+td {
+  border: 1px solid var(--line);
+  padding: 10px;
+  text-align: right
+}
+
+th {
+  background: #fafafa;
+  position: sticky;
+  top: 54px;
+  z-index: 5
+}
+
+td.left,
+th.left {
+  text-align: left
+}
+
+tr.total-row {
+  background: #eef8ff;
+  font-weight: 600
+}
+
+/* 그래프 카드 */
+.card {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .04)
+}
+
+/* .card h3 {
+  margin: 4px 0 8px;
+  font-size: 16px
+} */
+
+.chart-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 6px
+}
+
+.chart-wrap {
+  position: relative;
+  height: 300px
+}
+
+
+.container {
+  padding: 12px 16px 120px;
+}
+
+
+/* 기본(모바일) 공통 */
+header {
+  width: 100%;
+  margin: 0 auto;
+  /* 가운데 정렬을 원하면 유지 */
+  /* box-sizing: border-box; 필요 시 */
+}
+
+/* ≥576px */
+@media (min-width: 576px) {
+  header {
+    max-width: 540px;
+  }
+}
+
+/* ≥768px */
+@media (min-width: 768px) {
+  header {max-width: 720px;}
+  .chart-wrap {height: 360px;}
+  header h1 {font-size: 60px;}
+}
+
+/* ≥992px */
+@media (min-width: 992px) {
+  header {max-width: 960px;}
+  header span {display: block;}
+}
+
+/* ≥1200px */
+@media (min-width: 1200px) {
+  header {max-width: 1296px;}
+}
+
+
+.container,
+.container-fluid,
+.container-lg,
+.container-md,
+.container-sm,
+.container-xl,
+.container-xxl {
+  --bs-gutter-x: 1.5rem;
+  --bs-gutter-y: 0;
+  width: 100%;
+  padding-right: calc(var(--bs-gutter-x) * .5);
+  padding-left: calc(var(--bs-gutter-x) * .5);
+  margin-right: auto;
+  margin-left: auto;
+}
+
+
+
+
+/* gpx 샘플 파일 받기 */
+.sample-link {
+  font-size: 0.85rem;
+  margin-left: 50px;
   
-
-    <div id="fileChips" aria-live="polite"></div>
-    <div class="muted">여러 폴더에서 연속 선택하려면 <b>파일 추가</b>를 여러 번 누르세요.</div>
-
-    <div id="map" aria-label="활동 경로 지도"></div>
-    <div class="map-toolbar">
-      <button id="togglePanBtn" class="btn btn-light">지도 이동: 꺼짐</button>
-      <select id="colorMode" class="btn btn-light">
-        <option value="speed" selected>속도 색상</option>
-        <option value="hr">심박 색상</option>
-        <option value="power">파워 색상</option>
-        <option value="cad">케이던스 색상</option>
-        <option value="mono">단색</option>
-      </select>
-    </div>
-
-    <h2 class="midTitle" style="margin-top:50px;">파일별 요약</h2>
-    <table id="summaryTable">
-      <thead>
-        <tr>
-          <th class="left">파일</th>
-          <th>거리(km)</th>
-          <th>경과시간</th>
-          <th>이동시간</th>
-          <th>평균속도(경과)</th>
-          <th>평균속도(이동)</th>
-          <th>최대속도</th>
-          <th>평균페이스</th>
-          <th>누적상승</th>
-          <th>평균심박</th>
-          <th>최대심박</th>
-          <th>칼로리</th>
-          <th>평균케이던스</th>
-          <th>최대케이던스</th>
-          <th>평균파워</th>
-          <th>최대파워</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-
-    <div class="card" id="cumCard" style="display:none;">
-      <div class="chart-toolbar">
-        <label for="cumMode" class="muted">표시: </label>
-        <select id="cumMode" class="btn">
-          <option value="file" selected>파일별(일자+파일명)</option>
-          <option value="week">주간(ISO 주)</option>
-          <option value="month">월간(YYYY-MM)</option>
-        </select>
-      </div>
-      <h3>📈 누적 이동거리</h3>
-      <div class="chart-wrap">
-        <canvas id="cumChart"></canvas>
-      </div>
-      <div class="muted" id="cumHint"></div>
-    </div>
-
-    <!-- 단일 파일 상세 그래프 (Speed / Elevation / Heart Rate) -->
-    <div class="card" id="detailCard" style="display:none;">
-
-      <div class="chart-wrap" style="margin-top: 15px;">
-        <h4 class="chartTitle">Speed (km/h)</h4>
-        <canvas id="speedDistChart"></canvas>
-      </div>
-
-      <div class="chart-wrap" style="margin-top:60px;">
-        <h4 class="chartTitle">Elevation (m)</h4>
-        <canvas id="elevDistChart"></canvas>
-      </div>
-
-      <div class="chart-wrap" style="margin-top:60px; margin-bottom:20px;  ">
-        <h4 class="chartTitle">Heart Rate (bpm)</h4>
-        <canvas id="hrDistChart"></canvas>
-      </div>
-    </div>
-
-    <div id="lapsSection" style="display:none;">
-      <h2 class="midTitle" style="margin-top:80px;">랩(스플릿)</h2>
-      <table id="lapsTable">
-        <thead>
-          <tr>
-            <th class="left">랩</th>
-            <th>구간시간</th>
-            <th>구간평균속도</th>
-            <th>구간페이스</th>
-            <th>구간상승</th>
-            <th>구간평균심박</th>
-            <th>구간평균케이던스</th>
-            <th>구간평균파워</th>
-            <th>구간칼로리</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- 옵션 바텀시트 -->
-  <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
-    <div class="grab"></div>
-    <h3 id="sheetTitle" style="margin:4px 0 10px;">분석 옵션</h3>
-
-    <div class="opt-row">
-      <label>이동임계속도(m/s)
-        <input type="number" id="movingThreshold" value="1.0" step="0.1" />
-      </label>
-      <label>랩 거리(km)
-        <input type="number" id="lapDistanceKm" value="1" step="0.5" />
-      </label>
-    </div>
-
-    <div class="opt-row">
-      <label>고도 상승 최소(m)
-        <input type="number" id="minElevGain" value="1" step="0.5" />
-      </label>
-      <label>속도 이상치 상한(km/h)
-        <input type="number" id="maxSpeedCap" value="80" step="5" />
-      </label>
-    </div>
-
-    <h4 style="margin:10px 0 0;">칼로리 옵션</h4>
-    <div class="opt-row">
-      <label>계산 방식
-        <select id="calorieMethod">
-          <option value="auto" selected>Auto(파일값→HR→MET)</option>
-          <option value="hr">HR 기반(키텔식)</option>
-          <option value="met">속도(MET) 기반</option>
-          <option value="none">계산 안 함</option>
-        </select>
-      </label>
-      <label>체중(kg)
-        <input type="number" id="weightKg" placeholder="예: 70" step="0.1" />
-      </label>
-      <label>나이
-        <input type="number" id="age" placeholder="예: 40" />
-      </label>
-      <label>성별
-        <select id="sex">
-          <option value="">선택</option>
-          <option value="male">남</option>
-          <option value="female">여</option>
-        </select>
-      </label>
-    </div>
-
-    <div class="opt-row">
-      <label>FTP (W)
-        <input id="ftpW" type="number" inputmode="numeric" min="50" max="600" step="1" placeholder="예: 250">
-      </label>
-      <div class="muted" style="font-size:12px;">NP/IF/TSS 계산에 사용됩니다.</div>
-    </div>
-
-    <div class="opt-row" style="align-items:center;">
-      <input type="checkbox" id="useSmoothElevation" checked />
-      <label for="useSmoothElevation">고도 스무딩 사용(권장)</label>
-    </div>
-
-    <div class="opt-row" style="justify-content:flex-end;">
-      <button id="closeSheetBtn" class="btn btn-dark" style="width: 120px; height: 45px;; font-size: 16px;">입력
-        완료</button>
-    </div>
-  </div>
+}
 
 
-  <div id="metricSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="metricSheetTitle">
-    <div class="grab"></div>
-    <h3 id="metricSheetTitle" style="margin:4px 0 10px;">표시할 지표 선택</h3>
 
-    <div class="opt-row">
-      <label><input type="checkbox" value="distance" checked /> 거리(km)</label>
-      <label><input type="checkbox" value="elapsed" checked /> 경과시간</label>
-      <label><input type="checkbox" value="moving" checked /> 이동시간</label>
-      <label><input type="checkbox" value="avg_speed_elapsed" checked /> 평균속도(경과)</label>
-      <label><input type="checkbox" value="avg_speed_moving" checked /> 평균속도(이동)</label>
-      <label><input type="checkbox" value="max_speed" checked /> 최대속도</label>
-      <label><input type="checkbox" value="avg_pace" checked /> 평균페이스</label>
-    </div>
+/* .sample-link {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2e7d32;
+  text-decoration: none;
+}
 
-    <div class="opt-row">
-      <label><input type="checkbox" value="total_ascent" checked /> 누적상승</label>
-      <label><input type="checkbox" value="avg_hr" checked /> 평균심박</label>
-      <label><input type="checkbox" value="max_hr" checked /> 최대심박</label>
-      <label><input type="checkbox" value="calories" checked /> 칼로리</label>
-      <label><input type="checkbox" value="avg_cad" checked /> 평균케이던스</label>
-      <label><input type="checkbox" value="max_cad" checked /> 최대케이던스</label>
-    </div>
-
-    <div class="opt-row">
-      <label><input type="checkbox" value="avg_power" checked /> 평균파워</label>
-      <label><input type="checkbox" value="max_power" checked /> 최대파워</label>
-      <label><input type="checkbox" value="np" /> NP</label>
-      <label><input type="checkbox" value="if" /> IF</label>
-      <label><input type="checkbox" value="tss" /> TSS</label>
-    </div>
-
-    <div class="opt-row" style="justify-content:flex-end;">
-      <button id="closeMetricSheetBtn" class="btn btn btn-dark" style="width: 120px; height: 45px;; font-size: 16px;">선택
-        완료</button>
-    </div>
-  </div>
+.sample-link:hover {
+  text-decoration: underline;
+} */
 
 
-  <div class="fabbar" role="group" aria-label="기본 작업">
-    <button id="analyzeBtn" class="btn btn-primary">GPX 분석 시작</button>
-    <button id="openSheetBtn" class="btn btn-info">옵션 입력</button>
-    <button id="exportSummaryBtn" class="btn btn-secondary" disabled>주행 요약 저장</button>
-    <button id="exportLapsBtn" class="btn btn-secondary" disabled>랩(구간) 기록 저장</button>
-  </div>
 
-  <div id="overlay" class="overlay" aria-live="polite">
-    <div class="spinner"></div>
-    <div><span id="progressText">처리 중…</span></div>
-  </div>
 
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+/* 바텀시트 */
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: -100%;
+  background: #fff;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, .15);
+  transition: bottom .25s ease;
+  max-height: 80vh;
+  overflow: auto;
+  padding: 16px;
+  border-top: 1px solid var(--line);
+  z-index: 2000;
+}
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
-  <script type="module" src="gpx-mobile-ui.js?v=20250814" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"
-    integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q"
-    crossorigin="anonymous"></script>
+.sheet.open {
+  bottom: 0
+}
 
-</body>
+.sheet .grab {
+  width: 44px;
+  height: 5px;
+  border-radius: 999px;
+  background: #ddd;
+  margin: 0 auto 10px
+}
 
-</html>
+/* ✅ 옵션 행/라벨 정렬 — 첫 이미지처럼 보이도록 핵심 변경 */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  align-items: center;
+  justify-content: flex-start;
+  /* ← space-between 제거 */
+  margin-bottom: 10px;
+}
+
+.row label {
+  display: inline-flex;
+  /* 라벨과 인풋을 한 줄 세트 */
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+input[type="number"],
+select {
+  width: 8.5rem;
+  /* 모든 컨트롤 폭 통일 */
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  font-size: 16px;
+  background: #fff;
+}
+
+/* FTP 도움말은 줄바꿈 방지 */
+.row .muted {
+  white-space: nowrap
+}
+
+/* FAB 바 */
+.fabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1500;
+  background: rgba(255, 255, 255, .9);
+  backdrop-filter: saturate(1.2) blur(6px);
+  border-top: 1px solid var(--line);
+  padding: 10px 16px;
+  display: flex;
+  gap: 10px;
+}
+
+.fabbar .btn {
+  flex: 1;
+  font-weight: 600
+}
+
+/* 오버레이/토스트 */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 255, 255, .7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  font-size: 16px;
+  color: #000
+}
+
+.overlay.show {
+  display: flex
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #ddd;
+  border-top-color: #12b886;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 10px
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg)
+  }
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 84px;
+  z-index: 4000;
+  background: #111;
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease
+}
+
+.toast.show {
+  opacity: .96
+}
+
+
+
+#sheet .opt-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 10px;
+}
+
+#sheet .opt-row>* {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  padding: 0;
+}
+
+#sheet label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+#sheet input[type="number"],
+#sheet select {
+  width: 8.5rem;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  font-size: 16px;
+  background: #fff;
+}
+
+#sheet input[type="checkbox"] {
+  margin-right: 6px;
+}
+
+#sheet .muted {
+  white-space: nowrap;
+}
+
+
+#metricSheet .opt-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 10px;
+}
+
+#metricSheet .opt-row>* {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  padding: 0;
+}
+
+#metricSheet label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+#metricSheet input[type="checkbox"] {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+}
+
+
+
+.toolbar input[type="file"].file-input {
+  /* 필드 박스 제거 */
+  width: auto !important;
+  /* ⬅ 폭 자동: 버튼 크기만 */
+  padding: 0 !important;
+  /* ⬅ 필드 패딩 제거 */
+  border: 0 !important;
+  /* ⬅ 테두리 제거 */
+  background: transparent !important;
+  /* ⬅ 배경 제거 */
+  box-shadow: none !important;
+
+  /* 네이티브 텍스트 숨김 */
+  color: transparent !important;
+  caret-color: transparent;
+  text-shadow: none;
+}
+
+input[type="file"].file-input:hover {
+  background: #ecfff0;
+  border-color: #2e7d32;
+  box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.15);
+}
+
+
+/* 포커스시 박스 그림자/외곽선도 제거 */
+.toolbar input[type="file"].file-input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* 실제 버튼 스타일(유지/원하는대로) */
+.toolbar input[type="file"].file-input::file-selector-button {
+  margin-right: 12px;
+  padding: 0.75rem 1.1rem;
+  border: none;
+  border-radius: 10px;
+  background: #2e7d32;
+  color: #fff;
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform .06s ease, filter .2s ease, box-shadow .2s ease;
+  box-shadow: 0 6px 16px rgba(46, 125, 50, .28);
+}
+
+.toolbar input[type="file"].file-input:hover::file-selector-button {
+  filter: brightness(1.05);
+  box-shadow: 0 8px 18px rgba(46, 125, 50, .35);
+}
+
+.toolbar input[type="file"].file-input:active::file-selector-button {
+  transform: translateY(1px);
+}
+
+/* 비활성화 상태 */
+input[type="file"].file-input:disabled,
+input[type="file"].file-input:disabled::file-selector-button {
+  cursor: not-allowed;
+  filter: grayscale(0.3) opacity(0.7);
+}
+
+/* 인풋 오른쪽 상태 라벨 */
+#fileCountLabel {
+  margin-left: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  align-self: center;
+}
+
+/* 툴바에서 한 줄 정렬이 안 되면 추가 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  /* 창이 좁을 때 줄바꿈 */
+}
+
+
+
+/* 다크 모드 대응(선택) */
+@media (prefers-color-scheme: dark) {
+  input[type="file"].file-input {
+    background: #0f1712;
+    border-color: #3fa55a;
+    color: #d7f5df;
+  }
+
+  input[type="file"].file-input:hover {
+    background: #122017;
+    box-shadow: 0 0 0 4px rgba(63, 165, 90, 0.18);
+  }
+
+  input[type="file"].file-input::file-selector-button {
+    background: #3fa55a;
+    color: #061009;
+    box-shadow: 0 8px 20px rgba(63, 165, 90, 0.28);
+  }
+}
+
+
+
+.midTitle {
+  font-family: "JalnanGothic";
+  font-size: 24px;
+  color: #222;
+  line-height: 1;
+  border-left: 6px solid #f00;
+  padding-left: 10px;
+  transition: all 0.3s;
+}
+
+/* .chartTitle {
+  font-family: "Oswald", sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  color: #313131;
+  line-height: 1;
+  text-align: center;
+  margin: 0 auto 6px;
+
+} */
+
+.chartTitle {
+  position: absolute;
+  top: -50px; /* 캔버스보다 위에 뜨게 */
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  font-weight: bold;
+  z-index: 10;
+  background: white;
+  color: #313131cc;
+  padding: 2px 12px;
+  border-radius: 4px;
+}
+
+
+.chartTitle::before,
+.chartTitle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 40px;
+  height: 2px;
+  background: linear-gradient(to right, #2f80ed, #21c36f);
+}
+
+.chartTitle::before {
+  left: -50px;
+  transform: translateY(-50%);
+}
+
+.chartTitle::after {
+  right: -50px;
+  transform: translateY(-50%);
+}
