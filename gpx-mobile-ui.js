@@ -7,6 +7,32 @@
  * 수정일자: 2025-08-13
  * ============================================================================= */
 
+/* gpx 샘플 파일 받기 */
+document.getElementById('downloadSample').addEventListener('click', async function (e) {
+  e.preventDefault();
+
+  // GitHub Raw 파일 URL (한글 파일명은 자동 인코딩해서 붙여주세요)
+  const fileUrl = 'https://raw.githubusercontent.com/yoosh97/cycling/main/0411_%EC%B2%9C%ED%98%B8%EB%B2%97%EA%BD%83%EB%9D%BC%EC%9D%B4%EB%94%A9%EC%B1%8C%EB%A6%B0%EC%A7%80.gpx';
+
+  // 파일 가져오기
+  const response = await fetch(fileUrl);
+  const blob = await response.blob();
+
+  // 다운로드 링크 생성
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = '0411_천호벗꽃라이딩챌린지.gpx'; // 저장될 파일명
+  document.body.appendChild(link);
+  link.click();
+
+  // 메모리 정리
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+});
+
+
+
+
 /* ===== 유틸 ===== */
 const $ = (sel) => document.querySelector(sel);
 const round = (n, d = 2) => Number.isFinite(n) ? Number(n.toFixed(d)) : "";
@@ -89,7 +115,7 @@ function renderChips() {
 
 
 /* 파일 추가/삭제/초기화 시 반드시 갱신 */
-function addFiles(list){
+function addFiles(list) {
   const arr = Array.from(list || []);
   let added = 0;
   for (const f of arr) {
@@ -103,7 +129,7 @@ function addFiles(list){
   toast(added ? `${added}개 파일 추가됨` : `이미 선택된 파일입니다`);
 }
 
-function clearSelected(){
+function clearSelected() {
   selectedFiles = [];
   renderChips();
   if (elNativeInput) elNativeInput.value = '';
@@ -118,8 +144,8 @@ function updateFileCountLabel() {
   const n = selectedFiles.length;
   el.textContent =
     n === 0 ? '선택된 파일 없음'
-    : n === 1 ? selectedFiles[0].name
-    : `파일 ${n}개`;
+      : n === 1 ? selectedFiles[0].name
+        : `파일 ${n}개`;
 }
 
 elNativeInput?.addEventListener('change', (e) => {
@@ -962,12 +988,17 @@ function lineOpts(yTitle, yTickUnit) {
 }
 
 // ==== y값 크기에 따라 파랑→빨강 그라디언트 적용 (공용) ====
-function makeYGradient(chart, lowColor = "#2f80ed", highColor = "#ff3b3b") {
+function makeYGradient(chart, lowColor = "#2f80ed", midColor = "#21c36f", highColor = "#ff3b3b") {
   const { ctx, chartArea } = chart;
-  if (!chartArea) return null; // chartArea가 없으면(초기) 나중에 다시 적용
+  /* if (!chartArea) return null; // chartArea가 없으면(초기) 나중에 다시 적용 */
+  if (!chartArea || chartArea.top === chartArea.bottom) return null;
+  
   const g = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-  g.addColorStop(0, lowColor);  // 낮은 값(아래) = 파랑
-  g.addColorStop(1, highColor); // 높은 값(위) = 빨강
+/*   g.addColorStop(0, lowColor);  // 낮은 값(아래) = 파랑
+  g.addColorStop(1, highColor); // 높은 값(위) = 빨강 */
+  g.addColorStop(0, lowColor);   // 아래쪽 → 파랑
+  g.addColorStop(0.5, midColor); // 중간 → 초록
+  g.addColorStop(1, highColor);  // 위쪽 → 빨강
   return g;
 }
 
