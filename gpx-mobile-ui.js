@@ -4,33 +4,22 @@
  *  - 단일 파일 선택 시: 누적 차트 숨기고 상세 3차트 표시
  *  - 다중 파일 선택 시: 상세 3차트 숨기고 기존 누적 차트 표시
  *  - Chart.js / Leaflet / Bootstrap은 HTML에서 로드되어 있어야 함
- * 수정일자: 2025-08-13
+ * 수정일자: 2025-08-18 (리팩터링)
  * ============================================================================= */
 
-/* gpx 샘플 파일 받기 */
-document.getElementById('downloadSample').addEventListener('click', async function (e) {
+
+/* 샘플 다운로드 창 열기(별도 페이지/팝업) */
+document.getElementById('downloadSample')?.addEventListener('click', (e) => {
   e.preventDefault();
-
-  // GitHub Raw 파일 URL (한글 파일명은 자동 인코딩해서 붙여주세요)
-  const fileUrl = 'https://raw.githubusercontent.com/yoosh97/cycling/main/0411_%EC%B2%9C%ED%98%B8%EB%B2%97%EA%BD%83%EB%9D%BC%EC%9D%B4%EB%94%A9%EC%B1%8C%EB%A6%B0%EC%A7%80.gpx';
-
-  // 파일 가져오기
-  const response = await fetch(fileUrl);
-  const blob = await response.blob();
-
-  // 다운로드 링크 생성
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = '0411_천호벗꽃라이딩챌린지.gpx'; // 저장될 파일명
-  document.body.appendChild(link);
-  link.click();
-
-  // 메모리 정리
-  document.body.removeChild(link);
-  URL.revokeObjectURL(link.href);
+  // 팝업 차단 회피: 사용자 클릭 직후 window.open
+  const w = window.open(
+    'sample-downloads.html',
+    'gpxSamples',
+    'width=620,height=740,noopener'
+  );
+  // 포커스 보장(브라우저별)
+  try { w?.focus(); } catch {}
 });
-
-
 
 
 /* ===== 유틸 ===== */
@@ -55,25 +44,35 @@ const haversine = (lat1, lon1, lat2, lon2) => {
   const a = Math.sin(dlat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dlon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 };
+const fileKey = (f) => `${f.name}|${f.size}|${f.lastModified}`;         // 🧹 REFACTOR: 파일 키 유틸 단일화
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 
 /* ===== 토스트/오버레이 ===== */
-const toastEl = $("#toast"); let toastTimer = null;
+const toastEl = $("#toast");
+let toastTimer = null;
 function toast(msg, ms = 1600) {
   if (!toastEl) { console.log(msg); return; }
-  toastEl.textContent = msg; toastEl.classList.add("show"); clearTimeout(toastTimer);
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toastEl.classList.remove("show"), ms);
 }
-const overlay = $("#overlay"), progressText = $("#progressText");
+const overlay = $("#overlay");
+const progressText = $("#progressText");
 const showProgress = (t) => { progressText && (progressText.textContent = t); overlay?.classList.add("show"); };
 const setProgress = (t) => { progressText && (progressText.textContent = t); };
 const hideProgress = () => overlay?.classList.remove("show");
 
+
 /* ===== 파일 선택 ===== */
-const elNativeInput = $("#gpxFiles"), elAddBtn = $("#addFilesBtn"), elClearBtn = $("#clearFilesBtn"), elChips = $("#fileChips");
-let selectedFiles = []; const fileKey = (f) => `${f.name}|${f.size}|${f.lastModified}`;
+const elNativeInput = $("#gpxFiles"),
+  elAddBtn = $("#addFilesBtn"),
+  elClearBtn = $("#clearFilesBtn"),
+  elChips = $("#fileChips");
+let selectedFiles = [];
 
-
-/* ✅ 인풋 오른쪽에 상태 라벨을 한 번만 만든다 */
+/* 인풋 오른쪽 카운트 라벨 1회 생성 */
 (function ensureFileCountLabel() {
   if (!elNativeInput) return;
   if (document.getElementById('fileCountLabel')) return;
@@ -81,78 +80,61 @@ let selectedFiles = []; const fileKey = (f) => `${f.name}|${f.size}|${f.lastModi
   span.id = 'fileCountLabel';
   span.className = 'muted';
   span.textContent = '선택된 파일 없음';
-  // 한 줄 정렬이 필요하면 .file-row 래퍼를 HTML에 두거나,
-  // 아니면 그냥 인풋 바로 뒤에 꽂아 넣습니다.
   elNativeInput.insertAdjacentElement('afterend', span);
 })();
 
+function updateFileCountLabel() {
+  const el = document.getElementById('fileCountLabel');
+  if (!el) return;
+  const n = selectedFiles.length;
+  el.textContent = n === 0 ? '선택된 파일 없음'
+    : n === 1 ? selectedFiles[0].name
+      : `파일 ${n}개`;
+}
 
-
-
+/* 선택된 파일 칩 렌더 */
 function renderChips() {
   if (!elChips) return;
   elChips.innerHTML = "";
   const label = document.createElement("div");
-  /* label.id = "gpxFilesLabel"; */
   label.className = "muted";
   elChips.appendChild(label);
   updateFileCountLabel();
-
   if (!selectedFiles.length) return;
 
-  // 칩 렌더
   selectedFiles.forEach((f, i) => {
     const div = document.createElement("div");
     div.className = "chip";
     div.innerHTML = `<span title="${f.name}">${f.name}</span><button type="button" aria-label="삭제">삭제</button>`;
     div.querySelector("button").addEventListener("click", () => {
       selectedFiles.splice(i, 1);
-      renderChips();            // 삭제 후 다시 렌더 → 라벨도 자동 갱신
+      renderChips();
     });
     elChips.appendChild(div);
   });
 }
 
-
-/* 파일 추가/삭제/초기화 시 반드시 갱신 */
+/* 파일 추가/삭제/초기화 시 갱신 */
 function addFiles(list) {
   const arr = Array.from(list || []);
   let added = 0;
   for (const f of arr) {
-    const k = `${f.name}|${f.size}|${f.lastModified}`;
-    if (!selectedFiles.some(x => `${x.name}|${x.size}|${x.lastModified}` === k)) {
+    const k = fileKey(f);                                           // 🧹 REFACTOR: fileKey 유틸 사용
+    if (!selectedFiles.some(x => fileKey(x) === k)) {
       selectedFiles.push(f); added++;
     }
   }
   renderChips();
-  updateFileCountLabel();                // ← 추가/유지
-  toast(added ? `${added}개 파일 추가됨` : `이미 선택된 파일입니다`);
+  toast(added ? `${added}개 파일 추가됨` : `이미 선택된 파일입니다`); // 🧹 REFACTOR: 중복 라벨 갱신 호출 제거(렌더 안에서 처리)
 }
-
 function clearSelected() {
   selectedFiles = [];
   renderChips();
   if (elNativeInput) elNativeInput.value = '';
-  updateFileCountLabel();                // ← 유지
   toast('선택 초기화 완료');
 }
 
-/* ✅ 라벨 갱신은 이 ID만 대상으로 */
-function updateFileCountLabel() {
-  const el = document.getElementById('fileCountLabel');
-  if (!el) return;
-  const n = selectedFiles.length;
-  el.textContent =
-    n === 0 ? '선택된 파일 없음'
-      : n === 1 ? selectedFiles[0].name
-        : `파일 ${n}개`;
-}
-
-elNativeInput?.addEventListener('change', (e) => {
-  addFiles(e.target.files);
-  e.target.value = '';                   // 재선택 가능
-});
-
+elNativeInput?.addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
 elAddBtn?.addEventListener("click", async () => {
   if (window.showOpenFilePicker) {
     try {
@@ -171,9 +153,11 @@ elAddBtn?.addEventListener("click", async () => {
     input.click();
   }
 });
-elClearBtn?.addEventListener("click", clearSelected); renderChips();
+elClearBtn?.addEventListener("click", clearSelected);
+renderChips();
 
-/* ===== 지도 ===== */
+
+/* ===== 지도 안전 초기화 (Leaflet 로드/DOM 가시성 보장) ===== */
 let map, layerControl, legendControl;
 const mapLayers = {};
 const colorModeSel = $("#colorMode");
@@ -191,7 +175,9 @@ initMap();
 
 function setMapPan(enabled) {
   panEnabled = !!enabled; if (!map) return;
-  map.dragging[enabled ? "enable" : "disable"](); map.scrollWheelZoom[enabled ? "enable" : "disable"](); map.touchZoom[enabled ? "enable" : "disable"]();
+  map.dragging[enabled ? "enable" : "disable"]();
+  map.scrollWheelZoom[enabled ? "enable" : "disable"]();
+  map.touchZoom[enabled ? "enable" : "disable"]();
   togglePanBtn && (togglePanBtn.textContent = `지도 이동: ${enabled ? "켜짐" : "꺼짐"}`);
   toast(enabled ? "지도를 이동할 수 있습니다" : "지도가 고정되었습니다");
 }
@@ -199,57 +185,100 @@ togglePanBtn?.addEventListener("click", () => setMapPan(!panEnabled));
 
 function colorFromValue(val, minVal, maxVal) {
   if (!isFinite(val) || !isFinite(minVal) || !isFinite(maxVal) || maxVal <= minVal) return "#888";
-  const t = Math.min(1, Math.max(0, (val - minVal) / (maxVal - minVal))); const hue = (1 - t) * 240; return `hsl(${hue},85%,50%)`;
+  const t = Math.min(1, Math.max(0, (val - minVal) / (maxVal - minVal)));
+  const hue = (1 - t) * 240;
+  return `hsl(${hue},85%,50%)`;
 }
+
+/* 우하단 범례 */
 function addLegend(minVal, maxVal, unitLabel) {
   if (!window.L) return; if (legendControl) legendControl.remove();
-  legendControl = L.control({ position: 'bottomright' }); legendControl.onAdd = function () {
-    const div = L.DomUtil.create('div', 'legend'); div.style.background = "#fff"; div.style.padding = "8px 10px"; div.style.borderRadius = "6px";
-    div.style.boxShadow = "0 1px 4px rgba(0,0,0,.2)"; div.style.fontSize = "12px";
+  legendControl = L.control({ position: 'bottomright' });
+  legendControl.onAdd = function () {
+    const div = L.DomUtil.create('div', 'legend');
+    div.style.background = "#fff";
+    div.style.padding = "8px 10px";
+    div.style.borderRadius = "6px";
+    div.style.boxShadow = "0 1px 4px rgba(0,0,0,.2)";
+    div.style.fontSize = "12px";
     div.innerHTML = `<div><strong>${unitLabel}</strong></div>
       <div style="height:10px;width:160px;background:linear-gradient(90deg,#3066ff,#21c36f,#ffd33d,#ff3b3b);border-radius:4px;margin:6px 0;"></div>
       <div style="display:flex;justify-content:space-between;"><span>${round(minVal, 0)}</span><span>${round((minVal + maxVal) / 2, 0)}</span><span>${round(maxVal, 0)}</span></div>`;
     return div;
-  }; legendControl.addTo(map);
+  };
+  legendControl.addTo(map);
 }
-function randomColor(seed) { let h = 0; for (let i = 0; i < seed.length; i++) h = ((h << 5) - h) + seed.charCodeAt(i); const hue = Math.abs(h) % 360; return `hsl(${hue},80%,45%)`; }
+
+/* 🧹 REFACTOR: 난수 색상 함수 하나로 통일 + 사용처도 이 함수로 */
+function randomColorEx(seed = '') {
+  seed = String(seed);
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  const hue = ((h % 360) + 360) % 360;
+  const sat = 70 + (Math.abs(h) % 21);
+  const light = 40 + (Math.abs(h >> 3) % 21);
+  return `hsl(${hue},${sat}%,${light}%)`;
+}
+
+/* 🧹 REFACTOR: 세그먼트 값 추출 공용화 */
+const metricLabelMap = { speed: '속도 km/h', hr: '심박 bpm', power: '파워 W', cad: '케이던스 rpm' };
+function segMetric(colorMode, s) {
+  switch (colorMode) {
+    case 'speed': return s.v * 3.6;
+    case 'hr': return s.hrAvg ?? NaN;
+    case 'power': return s.pwAvg ?? NaN;
+    case 'cad': return s.cadAvg ?? NaN;
+    default: return NaN;
+  }
+}
+function addLegendByMode(colorMode, minV, maxV) {
+  const label = metricLabelMap[colorMode];
+  if (label) addLegend(minV, maxV, label);
+}
+
 function drawTrackLayer(fileName, analysis, colorMode, bounds) {
   if (!map) return;
-  if (mapLayers[fileName]) { layerControl.removeLayer(mapLayers[fileName]); map.removeLayer(mapLayers[fileName]); delete mapLayers[fileName]; }
-  const group = L.layerGroup(); mapLayers[fileName] = group; layerControl.addOverlay(group, fileName);
+  if (mapLayers[fileName]) {
+    layerControl.removeLayer(mapLayers[fileName]);
+    map.removeLayer(mapLayers[fileName]);
+    delete mapLayers[fileName];
+  }
 
+  const group = L.layerGroup();
+  mapLayers[fileName] = group;
+  layerControl.addOverlay(group, fileName);
+
+  // min/max 1회 계산 (중복 제거)
   let minMetric = Infinity, maxMetric = -Infinity;
   for (const s of analysis.segments) {
-    const metric =
-      (colorMode === 'hr') ? (s.hrAvg ?? NaN) :
-        (colorMode === 'speed') ? (s.v * 3.6) :
-          (colorMode === 'power') ? (s.pwAvg ?? NaN) :
-            (colorMode === 'cad') ? (s.cadAvg ?? NaN) : NaN;
+    const metric = segMetric(colorMode, s);
     if (isFinite(metric)) { minMetric = Math.min(minMetric, metric); maxMetric = Math.max(maxMetric, metric); }
   }
   if (minMetric === Infinity || maxMetric === -Infinity) { minMetric = 0; maxMetric = 1; }
 
   for (const s of analysis.segments) {
     const p1 = [s.lat1, s.lon1], p2 = [s.lat2, s.lon2];
-    const metric =
-      (colorMode === 'hr') ? (s.hrAvg ?? NaN) :
-        (colorMode === 'speed') ? (s.v * 3.6) :
-          (colorMode === 'power') ? (s.pwAvg ?? NaN) :
-            (colorMode === 'cad') ? (s.cadAvg ?? NaN) : NaN;
-    const color = (colorMode === 'mono') ? randomColor(fileName) : colorFromValue(metric, minMetric, maxMetric);
+    const metric = segMetric(colorMode, s);
+    const color = (colorMode === 'mono') ? randomColorEx(fileName) : colorFromValue(metric, minMetric, maxMetric);
     L.polyline([p1, p2], { color, weight: 5, opacity: .9 }).addTo(group);
     bounds.extend(p1); bounds.extend(p2);
   }
-  if (analysis.firstLatLng) { L.circleMarker(analysis.firstLatLng, { radius: 5, color: '#00a84f', fillColor: '#00a84f', fillOpacity: 1 }).bindPopup(`Start: ${fileName}`).addTo(group); bounds.extend(analysis.firstLatLng); }
-  if (analysis.lastLatLng) { L.circleMarker(analysis.lastLatLng, { radius: 5, color: '#ff3b3b', fillColor: '#ff3b3b', fillOpacity: 1 }).bindPopup(`Finish: ${fileName}`).addTo(group); bounds.extend(analysis.lastLatLng); }
-  if (colorMode === 'speed') addLegend(minMetric, maxMetric, '속도 km/h');
-  else if (colorMode === 'hr') addLegend(minMetric, maxMetric, '심박 bpm');
-  else if (colorMode === 'power') addLegend(minMetric, maxMetric, '파워 W');
-  else if (colorMode === 'cad') addLegend(minMetric, maxMetric, '케이던스 rpm');
+
+  if (analysis.firstLatLng) {
+    L.circleMarker(analysis.firstLatLng, { radius: 5, color: '#00a84f', fillColor: '#00a84f', fillOpacity: 1 })
+      .bindPopup(`Start: ${fileName}`).addTo(group); bounds.extend(analysis.firstLatLng);
+  }
+  if (analysis.lastLatLng) {
+    L.circleMarker(analysis.lastLatLng, { radius: 5, color: '#ff3b3b', fillColor: '#ff3b3b', fillOpacity: 1 })
+      .bindPopup(`Finish: ${fileName}`).addTo(group); bounds.extend(analysis.lastLatLng);
+  }
+
+  addLegendByMode(colorMode, minMetric, maxMetric); // 🧹 REFACTOR
   group.addTo(map);
 }
 
-/* ===== 칼로리 ===== */
+
+/* ===== 칼로리 ===== (동일) */
 function kcalPerMinKeytel(hr, w, age, sex) {
   if (!isFinite(hr) || !isFinite(w) || !isFinite(age) || !sex) return null;
   if (sex === "male") return (-55.0969 + 0.6309 * hr + 0.1988 * w + 0.2017 * age) / 4.184;
@@ -264,7 +293,8 @@ function estimateCaloriesMET(avgKmh, dur, w, { useMovingTime = true, net = false
   return metVal * w * (dur / 3600);
 }
 
-/* ===== GPX 파서: HR + 케이던스 + 파워 지원 ===== */
+
+/* ===== GPX 파서 ===== (동일) */
 function parseGpxText(xml) {
   const dom = new DOMParser().parseFromString(xml, "application/xml");
   const perr = dom.getElementsByTagName("parsererror"); if (perr && perr.length) throw new Error("GPX XML 파싱 실패");
@@ -298,7 +328,6 @@ function parseGpxText(xml) {
     if (i === 0 || pts[i].t - pts[i - 1].t !== 0) unique.push(pts[i]);
   }
 
-  // 칼로리는 합계가 아닌 대표(최대)값만 사용
   const nodes = dom.getElementsByTagName("*");
   const calVals = [];
   for (const n of nodes) {
@@ -311,16 +340,28 @@ function parseGpxText(xml) {
   return { points: unique, fileCalories };
 }
 
+
 /* ===== 고도 스무딩 ===== */
 function medianSmooth(arr, win = 5) {
-  const half = Math.floor(win / 2); const res = new Array(arr.length);
+  if (!Array.isArray(arr) || arr.length === 0) return [];
+  if (win < 1) win = 1;
+  if (win % 2 === 0) win -= 1;
+  const half = Math.floor(win / 2);
+  const res = new Array(arr.length);
   for (let i = 0; i < arr.length; i++) {
-    const s = Math.max(0, i - half), e = Math.min(arr.length - 1, i + half);
-    const slice = arr.slice(s, e + 1).filter(Number.isFinite).sort((a, b) => a - b);
-    res[i] = slice.length ? slice[Math.floor(slice.length / 2)] : arr[i];
+    const s = Math.max(0, i - half);
+    const e = Math.min(arr.length - 1, i + half);
+    const slice = [];
+    for (let j = s; j <= e; j++) {
+      const v = arr[j];
+      if (Number.isFinite(v)) slice.push(v);
+    }
+    slice.sort((a, b) => a - b);
+    res[i] = slice.length ? slice[(slice.length - 1) >> 1] : arr[i];
   }
   return res;
 }
+
 
 /* ===== 5초 롤링 최대속도 ===== */
 function maxSpeedKmhSmoothed(segments, windowS = 5) {
@@ -341,6 +382,7 @@ function maxSpeedKmhSmoothed(segments, windowS = 5) {
   }
   return maxKmh;
 }
+
 
 /* ===== NP/IF/TSS & Work(kJ) ===== */
 function normalizedPowerFromSegments(segments, windowS = 30) {
@@ -374,28 +416,26 @@ function normalizedPowerFromSegments(segments, windowS = 30) {
   return Math.pow(sumFourthWeighted / totalTime, 1 / 4);
 }
 function computeIF(np, ftp) { return (Number.isFinite(np) && Number.isFinite(ftp) && ftp > 0) ? (np / ftp) : null; }
+/* 🧹 REFACTOR: 동치식으로 단순화된 TSS 유지 */
 function computeTSS(durationS, np, ftp) {
+  durationS = Number(durationS); np = Number(np); ftp = Number(ftp);
   if (!(durationS > 0) || !Number.isFinite(np) || !Number.isFinite(ftp) || ftp <= 0) return null;
   const IF = np / ftp;
-  return (durationS * np * IF) / (ftp * 3600) * 100;
+  return (durationS / 3600) * IF * IF * 100;
 }
 function totalWorkKJFromSegments(segments) {
   let workJ = 0;
-  for (const s of segments) {
-    const pw = Number.isFinite(s.pwAvg) ? s.pwAvg : 0;
-    workJ += pw * (s.dt || 0);
-  }
-  return workJ / 1000; // kJ
+  for (const s of segments) workJ += (Number.isFinite(s.pwAvg) ? s.pwAvg : 0) * (s.dt || 0);
+  return workJ / 1000;
 }
+
 
 /* ===== 분석 ===== */
 function analyzePoints(points, opts) {
   const {
     movingSpeedThreshold = 1.0, maxSpeedCapKmh = 80, minElevGain = 1,
     useSmoothElevation = true, smoothWindow = 5,
-    avgOnMovingOnly = true,          // 평균 산정: 이동 구간만
-    cadenceMinRpm = 10,              // 케이던스 하한(0 제외)
-    avgPowerIncludeZero = true       // 파워 평균에 0W 포함 (코스팅 포함)
+    avgOnMovingOnly = true, cadenceMinRpm = 10, avgPowerIncludeZero = true
   } = opts || {};
   const speedCap = Number.isFinite(maxSpeedCapKmh) ? maxSpeedCapKmh : 80;
   const moveThr = Number.isFinite(movingSpeedThreshold) ? movingSpeedThreshold : 1.0;
@@ -439,8 +479,7 @@ function analyzePoints(points, opts) {
 
     if (Number.isFinite(p1.se) && Number.isFinite(p2.se)) {
       const de = p2.se - p1.se;
-      if (de > 0) { pendingUp += de; }
-      else if (de < 0) { pendingUp = Math.max(0, pendingUp + de); }
+      if (de > 0) { pendingUp += de; } else if (de < 0) { pendingUp = Math.max(0, pendingUp + de); }
       if (pendingUp >= minElevGain) { elevGain += pendingUp; pendingUp = 0; }
     }
 
@@ -482,14 +521,9 @@ function analyzePoints(points, opts) {
       if (useForAvg) { pwTimeSum += pwAvg * dt; pwTimeDen += dt; } else { pwAvg = null; }
     }
 
-    // [NEW] 절대 고도(e2)도 세그먼트에 싣기 → 상세 고도 라인 정확도 향상
     const e2 = Number.isFinite(p2.se) ? p2.se : null;
 
-    segments.push({
-      lat1: p1.lat, lon1: p1.lon, lat2: p2.lat, lon2: p2.lon,
-      d, dt, v, elevUp: segElevUp, hrAvg, cadAvg, pwAvg,
-      e2
-    });
+    segments.push({ lat1: p1.lat, lon1: p1.lon, lat2: p2.lat, lon2: p2.lon, d, dt, v, elevUp: segElevUp, hrAvg, cadAvg, pwAvg, e2 });
   }
   if (pendingUp > 0) elevGain += pendingUp;
 
@@ -517,7 +551,14 @@ function analyzePoints(points, opts) {
   };
 }
 
-/* ===== 랩 ===== */
+
+
+
+
+
+
+
+/* ===== 랩 ===== (동일) */
 function makeDistanceLaps(analysis, lapDistanceKm, calorieParams) {
   const laps = []; const lapDistM = lapDistanceKm * 1000;
   let accDist = 0, accTime = 0, accElev = 0, accHrSum = 0, accHrDen = 0, lapIdx = 1;
@@ -559,7 +600,6 @@ function makeDistanceLaps(analysis, lapDistanceKm, calorieParams) {
 function computeCaloriesForSegment(avgKmh, durationS, avgHr, params) {
   const { method, fileCalories, totalElapsedS, weightKg, age, sex, powerKJ } = params;
   if (method === "none") return null;
-
   if (method === "auto") {
     if (Number.isFinite(powerKJ) && powerKJ > 0) return powerKJ;
     if (fileCalories != null && Number.isFinite(totalElapsedS) && totalElapsedS > 0) {
@@ -574,16 +614,27 @@ function computeCaloriesForSegment(avgKmh, durationS, avgHr, params) {
   return null;
 }
 
+
 /* ===== CSV ===== */
 const toCSV = (rows) => {
-  if (!rows.length) return ""; const headers = Object.keys(rows[0]);
+  if (!rows.length) return "";
+  const headers = Object.keys(rows[0]);
   const esc = (v) => (v == null) ? "" : String(v).replaceAll('"', '""');
   return [headers.join(","), ...rows.map(r => headers.map(h => `"${esc(r[h])}"`).join(","))].join("\n");
 };
-const downloadCSV = (filename, csv) => {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" }); const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
-};
+function downloadCSV(filename, csv, { bom = true, attach = true, delayRevokeMs = 1000 } = {}) {
+  const content = (bom ? '\uFEFF' : '') + csv;
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  if (typeof navigator !== 'undefined' && navigator.msSaveBlob) { navigator.msSaveBlob(blob, filename); return; }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  if (attach) document.body.appendChild(a);
+  a.click();
+  if (attach) document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), delayRevokeMs);
+}
+
 
 /* ====== 요약 테이블: 지표 선택 ====== */
 const SUMMARY_COLS_KEY = "summaryVisibleCols_v1";
@@ -622,26 +673,48 @@ function buildSummaryHeader() {
   tr.innerHTML =
     `<th class="left" data-col="file">파일</th>` +
     SUMMARY_COLUMNS.map(c => `<th data-col="${c.key}">${c.label}</th>`).join("");
+  console.log(tr)
   thead.innerHTML = ""; thead.appendChild(tr);
 }
+
+
 function renderSummaryRow(row, { total = false } = {}) {
-  const tb = document.querySelector("#summaryTable tbody"); if (!tb) return;
-  const tr = document.createElement("tr"); if (total) tr.className = "total-row";
+  const tbody = document.querySelector("#summaryTable tbody");
+  const tfoot = document.querySelector("#summaryTable tfoot");
+  if (!tbody || !tfoot) return;
+
+  const tr = document.createElement("tr");
+  if (total) tr.className = "total-row";
+
   const cells = [
     `<td class="left" data-col="file">${row.file ?? ""}</td>`,
     ...SUMMARY_COLUMNS.map(c => `<td data-col="${c.key}">${row[c.key] ?? ""}</td>`)
   ];
-  tr.innerHTML = cells.join(""); tb.appendChild(tr);
+  tr.innerHTML = cells.join("");
+
+  if (total) {
+    tfoot.innerHTML = "";     // 합계는 1개만
+    tfoot.appendChild(tr);
+  } else {
+    tbody.appendChild(tr);
+  }
 }
+
 function applySummaryColumnVisibility() {
   const visible = getVisibleSet();
-  const allCells = document.querySelectorAll('#summaryTable [data-col]');
-  allCells.forEach(el => {
+  document.querySelectorAll('#summaryTable [data-col]').forEach(el => {
     const key = el.getAttribute('data-col');
     if (key === "file") { el.style.display = ""; return; }
     el.style.display = visible.has(key) ? "" : "none";
   });
 }
+
+
+
+
+
+
+/* 지표 선택 바텀시트 */
 function ensureMetricSheet() {
   if (document.getElementById("metricSheet")) return;
   const sheet = document.createElement("div");
@@ -684,7 +757,6 @@ function ensureMetricSheet() {
     SUMMARY_COLUMNS.forEach(c => { const el = document.getElementById(`metric_${c.key}`); if (el) el.checked = s.has(c.key); });
     applySummaryColumnVisibility();
   };
-
   sheet.querySelector("#metricAllBtn").addEventListener("click", () => setAndApply(SUMMARY_COLUMNS.map(c => c.key)));
   sheet.querySelector("#metricBasicBtn").addEventListener("click", () => setAndApply(["total_km", "elapsed", "moving", "avg_kmh_elapsed", "max_kmh", "avg_pace", "elev_gain_m", "avg_hr", "calories_kcal"]));
   sheet.querySelector("#metricPowerBtn").addEventListener("click", () => setAndApply(["total_km", "elapsed", "moving", "avg_kmh_elapsed", "max_kmh", "avg_pace", "avg_cad", "max_cad", "avg_pw", "max_pw", "np", "if", "tss"]));
@@ -693,7 +765,7 @@ function ensureMetricSheet() {
 }
 function closeSheetById(id) { document.getElementById(id)?.classList.remove("open"); }
 document.getElementById("closeMetricSheetBtn")?.addEventListener("click", () => closeSheetById("metricSheet"));
-document.getElementById("closeSheetBtn")?.addEventListener("click", () => closeSheetById("sheet"));
+document.getElementById("closeSheetBtn")?.addEventListener("click", () => closeSheetById("optionSheet"));
 function injectMetricToolbar() {
   const tbl = document.getElementById("summaryTable");
   if (!tbl || document.getElementById("openMetricSheetBtn")) return;
@@ -704,7 +776,6 @@ function injectMetricToolbar() {
     <button id="metricShowAllBtn" class="btn btn-secondary">전체보기</button>
     <button id="metricShowBasicBtn" class="btn btn-secondary">기본</button>`;
   tbl.parentNode.insertBefore(bar, tbl);
-
   document.getElementById("openMetricSheetBtn").addEventListener("click", () => { ensureMetricSheet(); document.getElementById("metricSheet").classList.add("open"); });
   document.getElementById("metricShowAllBtn").addEventListener("click", () => { saveVisibleSet(new Set(SUMMARY_COLUMNS.map(c => c.key))); applySummaryColumnVisibility(); });
   document.getElementById("metricShowBasicBtn").addEventListener("click", () => {
@@ -712,32 +783,26 @@ function injectMetricToolbar() {
     applySummaryColumnVisibility();
   });
 }
-buildSummaryHeader();
+/* buildSummaryHeader(); */
 injectMetricToolbar();
 
-/* ===== 누적 이동거리 차트 ===== */
-let cumChart = null;
-const cumCard = document.getElementById("cumCard");
-const cumHint = document.getElementById("cumHint");
-const cumModeSel = document.getElementById("cumMode");
+// ✅ 지표 선택 체크박스 클릭 이벤트 위임 (추가 코드)
+document.getElementById("metricSheet")?.addEventListener("click", (e) => {
+  const target = e.target;
+  if (target.matches('input[type="checkbox"]')) {
+    const key = target.value;
+    const visible = getVisibleSet();
+    if (target.checked) visible.add(key);
+    else visible.delete(key);
+    saveVisibleSet(visible);
+    applySummaryColumnVisibility();
+  }
+});
 
-function renderCumulativeChart(labels, cumValues) {
-  if (!window.Chart) return;
-  const ctx = document.getElementById("cumChart")?.getContext("2d"); if (!ctx) return;
-  const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.clientHeight || 300);
-  gradient.addColorStop(0, "rgba(18,184,134,0.35)"); gradient.addColorStop(1, "rgba(18,184,134,0.02)");
-  if (cumChart) cumChart.destroy();
-  cumChart = new Chart(ctx, {
-    type: "line",
-    data: { labels, datasets: [{ label: "누적 이동거리 (km)", data: cumValues, tension: 0.35, fill: true, backgroundColor: gradient, borderColor: "#12b886", borderWidth: 2, pointRadius: 2.5, pointHoverRadius: 4, pointHitRadius: 12 }] },
-    options: {
-      responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y.toFixed(2)} km` } } },
-      scales: { x: { ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 8 }, grid: { display: false } }, y: { title: { display: true, text: "거리(km)" }, ticks: { callback: v => `${v} km` }, grid: { color: "rgba(0,0,0,.06)" } } }
-    }
-  });
-  if (cumCard) cumCard.style.display = labels.length ? "block" : "none";
-}
+
+/* ===== 누적/상승 차트 – 공용 로직으로 통합 ===== */
+
+/* 🧹 REFACTOR: 주/월 키 유틸 재사용 */
 function getISOWeek(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
@@ -746,24 +811,127 @@ function getISOWeek(date) {
   const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
   return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 }
-function getMonthKey(date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`; }
-function makeCumulativeSeries(items, mode) {
+const getMonthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+/* 🧹 REFACTOR: 그룹화/누적화를 일반화 */
+function makeSeries(items, mode, valueKey, labelBuilder) {
   let groups = [];
   if (mode === "file") {
-    groups = items.slice().sort((a, b) => a.date - b.date).map(x => ({ key: x.date || 0, label: `${x.label}`, km: x.km }));
-  } else if (mode === "week") {
+    groups = items.slice().sort((a, b) => a.date - b.date)
+      .map(x => ({ key: x.date || 0, label: labelBuilder(x), val: Number(x[valueKey]) || 0 }));
+  } else {
     const map = new Map();
-    for (const it of items) { const d = new Date(it.date || 0); const key = getISOWeek(d); map.set(key, (map.get(key) || 0) + it.km); }
-    groups = Array.from(map.entries()).map(([key, km]) => ({ key, label: key, km })).sort((a, b) => (a.key > b.key ? 1 : -1));
-  } else if (mode === "month") {
-    const map = new Map();
-    for (const it of items) { const d = new Date(it.date || 0); const key = getMonthKey(d); map.set(key, (map.get(key) || 0) + it.km); }
-    groups = Array.from(map.entries()).map(([key, km]) => ({ key, label: key, km })).sort((a, b) => (a.key > b.key ? 1 : -1));
+    for (const it of items) {
+      const d = new Date(it.date || 0);
+      const key = mode === "week" ? getISOWeek(d) : getMonthKey(d);
+      map.set(key, (map.get(key) || 0) + (Number(it[valueKey]) || 0));
+    }
+    groups = Array.from(map.entries()).map(([key, val]) => ({ key, label: key, val }))
+      .sort((a, b) => (a.key > b.key ? 1 : -1));
   }
   const labels = groups.map(g => g.label);
-  const cumulative = []; let acc = 0; for (const g of groups) { acc += g.km; cumulative.push(Number(acc.toFixed(3))); }
+  const cumulative = []; let acc = 0;
+  for (const g of groups) { acc += g.val; cumulative.push(acc); }
   return { labels, cumulative, total: acc };
 }
+
+/* 🧹 REFACTOR: 라인 에어리어 차트 렌더 공용화 + chart 인스턴스 레지스트리 */
+const chartRegistry = new Map();
+function renderAreaLineChart(ctxId, { labels, data, color, label, yTitle, yUnit, decimals = 2 }) {
+  if (!window.Chart) return;
+  const ctx = document.getElementById(ctxId)?.getContext("2d");
+  if (!ctx) return;
+  const h = ctx.canvas.height || ctx.canvas.clientHeight || 300;
+  const gradient = ctx.createLinearGradient(0, 0, 0, h);
+  const [c0, c1] = color;
+  gradient.addColorStop(0, `${c0}59`); // 0.35 alpha
+  gradient.addColorStop(1, `${c0}05`); // 0.02 alpha
+
+  const prev = chartRegistry.get(ctxId);
+  if (prev) prev.destroy();
+
+  const chart = new Chart(ctx, {
+    type: "line",
+    data: { labels, datasets: [{ label, data, tension: 0.35, fill: true, backgroundColor: gradient, borderColor: c1, borderWidth: 2, pointRadius: 2.5, pointHoverRadius: 4, pointHitRadius: 12 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y.toFixed(decimals)} ${yUnit}` } }
+      },
+      scales: {
+        x: { ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 8 }, grid: { display: false } },
+        y: { title: { display: true, text: yTitle }, ticks: { callback: v => `${v} ${yUnit}` }, grid: { color: "rgba(0,0,0,.06)" } }
+      }
+    }
+  });
+  chartRegistry.set(ctxId, chart);
+  return chart;
+}
+
+/* 누적/상승 카드 참조 및 힌트 공용 표시 */
+let cumChart = null;
+const cumCard = document.getElementById("cumCard");
+const cumHint = document.getElementById("cumHint");
+const cumModeSel = document.getElementById("cumMode");
+
+let elevChart = null;
+const elevCard = (() => {
+  const el = document.getElementById("elevChart")?.closest(".card");
+  if (el) return el;
+  // 없으면 동적 생성(기존 로직 유지)
+  const card = document.createElement("div");
+  card.className = "card"; card.style.display = "none";
+  card.innerHTML = `
+    <div class="chart-toolbar">
+      <label for="elevMode" class="muted">표시: </label>
+      <select id="elevMode" class="btn btn-outline-secondary muted" style="width: 100px; height: 30px; font-size: 14px;">
+        <option value="file" selected>파일별</option>
+        <option value="week">주간</option>
+        <option value="month">월간</option>
+      </select>
+    </div>
+    <div class="chart-wrap" style="margin-top:30px;">
+      <h3 class="chartTitle">Cumulative Elevation Gain</h3>
+      <canvas id="elevChart"></canvas>
+    </div>
+    <div class="muted" id="elevHint"></div>`;
+  document.getElementById("cumCard")?.after(card);
+  return card;
+})();
+const elevModeSel = elevCard.querySelector("#elevMode");
+const elevHint = elevCard.querySelector("#elevHint");
+
+/* 🧹 REFACTOR: 힌트 라벨 표시 공용화 */
+function setRangeHint(el, { mode, labels, total, unit }) {
+  if (!el) return;
+  if (!labels.length) { el.textContent = ""; return; }
+  const first = labels[0]?.split(" · ")[0];
+  const last = labels.at(-1)?.split(" · ")[0];
+  el.textContent = `표시: ${mode.toUpperCase()}  ·  기간: ${first} ~ ${last}  ·  항목 ${labels.length}개  ·  총 ${total.toFixed(unit === 'km' ? 2 : 1)} ${unit}`;
+}
+
+/* 누적 거리 */
+function updateCumulativeChart(items, mode = "file") {
+  const { labels, cumulative, total } = makeSeries(items, mode, 'km', (x) => x.label);
+  cumChart = renderAreaLineChart("cumChart", {
+    labels, data: cumulative, color: ["#12b886", "#12b886"], label: "누적 이동거리 (km)", yTitle: "거리(km)", yUnit: "km", decimals: 2
+  });
+  if (cumCard) cumCard.style.display = labels.length ? "block" : "none";
+  setRangeHint(cumHint, { mode, labels, total, unit: 'km' });
+}
+
+/* 누적 상승 */
+function updateElevationChart(items, mode = "file") {
+  const { labels, cumulative, total } = makeSeries(items, mode, 'elev', (x) => x.label);
+  if (labels.length) elevCard.style.display = "block"; else elevCard.style.display = "none";
+  elevChart = renderAreaLineChart("elevChart", {
+    labels, data: cumulative, color: ["#ff6600", "#ff6600"], label: "누적 상승고도 (m)", yTitle: "상승고도(m)", yUnit: "m", decimals: 1
+  });
+  setRangeHint(elevHint, { mode, labels, total, unit: 'm' });
+}
+
 
 /* ===== FTP 로컬 저장 ===== */
 (function initFTPField() {
@@ -778,10 +946,20 @@ function makeCumulativeSeries(items, mode) {
   });
 })();
 
-/* ===== 옵션 시트 열고닫기 ===== */
-const openSheetBtn = $("#openSheetBtn"), closeSheetBtn = $("#closeSheetBtn"), sheet = $("#sheet");
-openSheetBtn?.addEventListener("click", () => sheet?.classList.add("open"));
-closeSheetBtn?.addEventListener("click", () => sheet?.classList.remove("open"));
+/* ===== 옵션 시트 열고닫기 (id 수정) ===== */
+const openSheetBtn = $("#openSheetBtn");
+const closeSheetBtn = $("#closeSheetBtn");
+const getOptionSheet = () =>
+  document.getElementById("optionSheet") || document.getElementById("sheet");
+
+// 열기/닫기
+openSheetBtn?.addEventListener("click", () => getOptionSheet()?.classList.add("open"));
+closeSheetBtn?.addEventListener("click", () => {
+  const el = getOptionSheet();
+  el?.classList.remove("open");
+  // 숨김→표시 전환 시 지도 사이즈 재계산(지도 안 찌그러지게)
+  setTimeout(() => map?.invalidateSize(), 0);
+});
 
 /* ===== 테이블/버튼 엘리먼트 ===== */
 const elAnalyze = $("#analyzeBtn"), elExportSummary = $("#exportSummaryBtn"), elExportLaps = $("#exportLapsBtn");
@@ -789,7 +967,7 @@ const tbodySummary = $("#summaryTable tbody"), lapsSection = $("#lapsSection"), 
 let lastSummary = [], lastLaps = [];
 let fileDistanceForChart = []; // {label, date(ms), km, fileName, elev}
 
-/* ===== 랩 테이블 헤더 보강 ===== */
+/* 랩 테이블 헤더 보강 */
 (function ensureLapsHeaderColumns() {
   const headRow = document.querySelector("#lapsTable thead tr");
   if (!headRow) return;
@@ -802,86 +980,11 @@ let fileDistanceForChart = []; // {label, date(ms), km, fileName, elev}
   }
 })();
 
-/* ===== 누적 상승고도 차트(동적 카드) ===== */
-let elevChart = null;
-const elevCard = document.createElement("div");
-elevCard.className = "card"; elevCard.style.display = "none";
-elevCard.innerHTML = `
-  <div class="chart-toolbar">
-    <label for="elevMode" class="muted">표시: </label>
-    <select id="elevMode" class="btn">
-      <option value="file" selected>파일별(일자+파일명)</option>
-      <option value="week">주간(ISO 주)</option>
-      <option value="month">월간(YYYY-MM)</option>
-    </select>
-  </div>
-  
-  <div class="chart-wrap" style="margin-top:30px;">
-    <h3 class="chartTitle">Cumulative Elevation Gain</h3>
-    <canvas id="elevChart"></canvas>
-  </div>
-  <div class="muted" id="elevHint"></div>`;
-const cumCardEl = document.getElementById("cumCard");
-if (!document.getElementById("elevChart")) { cumCardEl?.after(elevCard); }
-const elevModeSel = elevCard.querySelector("#elevMode");
-const elevHint = elevCard.querySelector("#elevHint");
-
-function renderElevationChart(labels, cumValues) {
-  if (!window.Chart) return;
-  if (labels.length) elevCard.style.display = "block";
-  const ctx = document.getElementById("elevChart")?.getContext("2d"); if (!ctx) return;
-  const h = ctx.canvas.height || ctx.canvas.clientHeight || 300;
-  const gradient = ctx.createLinearGradient(0, 0, 0, h);
-  gradient.addColorStop(0, "rgba(255,102,0,0.35)"); gradient.addColorStop(1, "rgba(255,102,0,0.02)");
-  if (elevChart) elevChart.destroy();
-  elevChart = new Chart(ctx, {
-    type: "line",
-    data: { labels, datasets: [{ label: "누적 상승고도 (m)", data: cumValues, tension: 0.35, fill: true, backgroundColor: gradient, borderColor: "#ff6600", borderWidth: 2, pointRadius: 2.5, pointHoverRadius: 4, pointHitRadius: 12 }] },
-    options: {
-      responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y.toFixed(1)} m` } } },
-      scales: { x: { ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 8 }, grid: { display: false } }, y: { title: { display: true, text: "상승고도(m)" }, ticks: { callback: v => `${v} m` }, grid: { color: "rgba(0,0,0,.06)" } } }
-    }
-  });
-  if (!labels.length) elevCard.style.display = "none";
-}
-function makeElevationSeries(items, mode) {
-  let groups = [];
-  if (mode === "file") {
-    groups = items.slice().sort((a, b) => a.date - b.date).map(x => ({ key: x.date || 0, label: `${x.label}`, elev: x.elev }));
-  } else {
-    const map = new Map();
-    for (const it of items) {
-      const d = new Date(it.date || 0);
-      const key = mode === "week" ? getISOWeek(d) : getMonthKey(d);
-      map.set(key, (map.get(key) || 0) + it.elev);
-    }
-    groups = Array.from(map.entries()).map(([key, elev]) => ({ key, label: key, elev })).sort((a, b) => (a.key > b.key ? 1 : -1));
-  }
-  const labels = groups.map(g => g.label);
-  const cumulative = []; let acc = 0;
-  for (const g of groups) { acc += g.elev; cumulative.push(Number(acc.toFixed(1))); }
-  return { labels, cumulative, total: acc };
-}
-function updateElevationChart(mode = "file") {
-  if (!fileDistanceForChart.length) { elevCard.style.display = "none"; return; }
-  const items = fileDistanceForChart.map(d => ({ ...d, elev: d.elev || 0 }));
-  const { labels, cumulative, total } = makeElevationSeries(items, mode);
-  renderElevationChart(labels, cumulative);
-  if (labels.length) {
-    const first = labels[0].split(" · ")[0]; const last = labels.at(-1).split(" · ")[0];
-    elevHint.textContent = `표시: ${mode.toUpperCase()}  ·  기간: ${first} ~ ${last}  ·  항목 ${labels.length}개  ·  총 ${total.toFixed(1)} m`;
-  } else { elevHint.textContent = ""; }
-}
-elevModeSel?.addEventListener("change", () => updateElevationChart(elevModeSel.value));
-updateElevationChart("file");
 
 /* =============================================================================
- * [NEW] 단일 파일 상세 그래프(거리-속도/고도/심박)
+ * 단일 파일 상세 그래프(거리-속도/고도/심박)
  * ============================================================================= */
 let speedDistChart = null, elevDistChart = null, hrDistChart = null;
-
-/** detailCard가 없으면 자동 생성해서 cumCard 아래 삽입 */
 (function ensureDetailCard() {
   if (document.getElementById("detailCard")) return;
   const card = document.createElement("div");
@@ -890,62 +993,36 @@ let speedDistChart = null, elevDistChart = null, hrDistChart = null;
   card.style.display = "none";
   card.innerHTML = `
     <h3>🏁 단일 파일 상세 그래프</h3>
-
     <div class="chart-wrap" style="margin-top:8px;">
       <h4 style="margin:0 0 6px;font-size:14px;">Speed (km/h) — X: 이동거리(km)</h4>
       <canvas id="speedDistChart"></canvas>
     </div>
-
     <div class="chart-wrap" style="margin-top:16px;">
       <h4 style="margin:0 0 6px;font-size:14px;">Elevation (m) — X: 이동거리(km)</h4>
       <canvas id="elevDistChart"></canvas>
     </div>
-
     <div class="chart-wrap" style="margin-top:16px;">
       <h4 style="margin:0 0 6px;font-size:14px;">Heart Rate (bpm) — X: 이동거리(km)</h4>
       <canvas id="hrDistChart"></canvas>
     </div>`;
   (document.getElementById("cumCard") || document.body).after(card);
 })();
-
 const detailCard = document.getElementById("detailCard");
 
 function buildDetailSeries(analysis) {
   const distKm = [], speedKmh = [], elevM = [], hrBpm = [];
   let accM = 0;
-  const segs = analysis.segments || [];
-  for (let i = 0; i < segs.length; i++) {
-    const s = segs[i];
+  for (const s of (analysis.segments || [])) {
     accM += (s.d || 0);
-    const vKmh = (Number.isFinite(s.v) ? s.v * 3.6 : null);
-    const e2 = Number.isFinite(s.e2) ? s.e2 : null;     // analyzePoints에서 주입
-    const hr = Number.isFinite(s.hrAvg) ? s.hrAvg : null;
-
     distKm.push(accM / 1000);
-    speedKmh.push(vKmh);
-    elevM.push(e2);
-    hrBpm.push(hr);
+    speedKmh.push(Number.isFinite(s.v) ? s.v * 3.6 : null);
+    elevM.push(Number.isFinite(s.e2) ? s.e2 : null);
+    hrBpm.push(Number.isFinite(s.hrAvg) ? s.hrAvg : null);
   }
   return { distKm, speedKmh, elevM, hrBpm };
 }
 
-
-/* function lineOpts(yTitle, yTickUnit) {
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: "index", intersect: false },
-    plugins: {
-      legend: { display: false },
-      tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y?.toFixed?.(1) ?? ctx.parsed.y} ${yTickUnit}` } }
-    },
-    scales: {
-      x: { grid: { display: false }, title: { display: true, text: "이동거리 (km)" } },
-      y: { title: { display: true, text: yTitle }, grid: { color: "rgba(0,0,0,.06)" } }
-    }
-  };
-} */
-// ✅ 거리축을 정수로 표기하는 공통 옵션
+/* 공통 옵션 (거리축 정수 표시 유지) */
 function lineOpts(yTitle, yTickUnit) {
   return {
     responsive: true,
@@ -955,7 +1032,6 @@ function lineOpts(yTitle, yTickUnit) {
       legend: { display: false },
       tooltip: {
         callbacks: {
-          // 툴팁의 제목에도 정수 거리 표시
           title: (items) => {
             const raw = items?.[0]?.label;
             const num = Number(raw);
@@ -970,132 +1046,90 @@ function lineOpts(yTitle, yTickUnit) {
         grid: { display: false },
         title: { display: true, text: "이동거리 (km)" },
         ticks: {
-          autoSkip: true,
-          maxTicksLimit: 12,            // 과도한 눈금 방지
-          callback: function (value) {  // ← 여기서 정수 변환
+          autoSkip: true, maxTicksLimit: 12,
+          callback: function (value) {
             const lbl = this.getLabelForValue(value);
             const num = Number(lbl);
-            if (!Number.isFinite(num)) return lbl ?? "";
-            return Math.round(num);     // 소수점 제거(반올림). 버림은 Math.floor
+            return Number.isFinite(num) ? Math.round(num) : (lbl ?? "");
           }
         }
       },
-      y: {
-        title: { display: true, text: yTitle },
-        grid: { color: "rgba(0,0,0,.06)" }
-      }
+      y: { title: { display: true, text: yTitle }, grid: { color: "rgba(0,0,0,.06)" } }
     }
   };
 }
 
-// ==== y값 크기에 따라 파랑→빨강 그라디언트 적용 (공용) ====
+/* y 그라디언트 공용 */
 function makeYGradient(chart, lowColor = "#2f80ed", midColor = "#21c36f", highColor = "#ff3b3b") {
   const { ctx, chartArea } = chart;
-  /* if (!chartArea) return null; // chartArea가 없으면(초기) 나중에 다시 적용 */
   if (!chartArea || chartArea.top === chartArea.bottom) return null;
-  
   const g = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-/*   g.addColorStop(0, lowColor);  // 낮은 값(아래) = 파랑
-  g.addColorStop(1, highColor); // 높은 값(위) = 빨강 */
-  g.addColorStop(0, lowColor);   // 아래쪽 → 파랑
-  g.addColorStop(0.5, midColor); // 중간 → 초록
-  g.addColorStop(1, highColor);  // 위쪽 → 빨강
+  g.addColorStop(0, lowColor); g.addColorStop(0.5, midColor); g.addColorStop(1, highColor);
   return g;
 }
-
 function applyLineGradient(chart) {
   const g = makeYGradient(chart);
-  if (!g) return; // 초기 렌더링 중에는 chartArea가 아직 없을 수 있음
-  chart.data.datasets.forEach(ds => {
-    ds.borderColor = g;
-    ds.pointBackgroundColor = g;
-  });
+  if (!g) return;
+  chart.data.datasets.forEach(ds => { ds.borderColor = g; ds.pointBackgroundColor = g; });
   chart.update("none");
 }
-
-
-function ctxOf(id) { const el = document.getElementById(id); return el ? el.getContext("2d") : null; }
+const ctxOf = (id) => document.getElementById(id)?.getContext("2d") || null;
 function destroyDetailCharts() {
   [speedDistChart, elevDistChart, hrDistChart].forEach(c => c?.destroy?.());
   speedDistChart = elevDistChart = hrDistChart = null;
 }
-
 function renderDetailCharts(series) {
   if (!window.Chart || !detailCard) return;
   destroyDetailCharts();
-
-  // Speed
   const sctx = ctxOf("speedDistChart");
   if (sctx) {
-    const optsS = lineOpts("속도 (km/h)", "km/h");
-    optsS.onResize = (c) => applyLineGradient(c);
+    const optsS = lineOpts("속도 (km/h)", "km/h"); optsS.onResize = (c) => applyLineGradient(c);
     speedDistChart = new Chart(sctx, {
       type: "line",
-      data: {
-        labels: series.distKm,
-        datasets: [{ label: "Speed (km/h)", data: series.speedKmh, tension: 0.25, fill: false, borderWidth: 2, pointRadius: 0 }]
-      },
+      data: { labels: series.distKm, datasets: [{ label: "Speed (km/h)", data: series.speedKmh, tension: 0.25, fill: false, borderWidth: 2, pointRadius: 0 }] },
       options: optsS
-    });
-    applyLineGradient(speedDistChart); // ← 최초 적용
+    }); applyLineGradient(speedDistChart);
   }
-
-  // Elevation
   const ectx = ctxOf("elevDistChart");
   if (ectx) {
-    const optsE = lineOpts("고도 (m)", "m");
-    optsE.onResize = (c) => applyLineGradient(c);
+    const optsE = lineOpts("고도 (m)", "m"); optsE.onResize = (c) => applyLineGradient(c);
     elevDistChart = new Chart(ectx, {
       type: "line",
-      data: {
-        labels: series.distKm,
-        datasets: [{ label: "Elevation (m)", data: series.elevM, tension: 0.25, fill: false, borderWidth: 2, pointRadius: 0 }]
-      },
+      data: { labels: series.distKm, datasets: [{ label: "Elevation (m)", data: series.elevM, tension: 0.25, fill: false, borderWidth: 2, pointRadius: 0 }] },
       options: optsE
-    });
-    applyLineGradient(elevDistChart); // ← 최초 적용
+    }); applyLineGradient(elevDistChart);
   }
-
-  // Heart Rate
   const hctx = ctxOf("hrDistChart");
   if (hctx) {
-    const optsH = lineOpts("심박 (bpm)", "bpm");
-    optsH.onResize = (c) => applyLineGradient(c);
+    const optsH = lineOpts("심박 (bpm)", "bpm"); optsH.onResize = (c) => applyLineGradient(c);
     hrDistChart = new Chart(hctx, {
       type: "line",
-      data: {
-        labels: series.distKm,
-        datasets: [{ label: "Heart Rate (bpm)", data: series.hrBpm, tension: 0.25, fill: false, borderWidth: 2, pointRadius: 0 }]
-      },
+      data: { labels: series.distKm, datasets: [{ label: "Heart Rate (bpm)", data: series.hrBpm, tension: 0.25, fill: false, borderWidth: 2, pointRadius: 0 }] },
       options: optsH
-    });
-    applyLineGradient(hrDistChart); // ← 최초 적용
+    }); applyLineGradient(hrDistChart);
   }
-
   detailCard.style.display = "block";
 }
 
+/* 🧹 REFACTOR: 상세/누적 뷰 토글 공용화 */
+function setDetailMode(on) {
+  const elevC = document.getElementById("elevChart")?.closest(".card");
+  if (on) {
+    detailCard && (detailCard.style.display = "block");
+    if (cumCard) cumCard.style.display = "none";
+    if (elevC) elevC.style.display = "none";
+  } else {
+    detailCard && (detailCard.style.display = "none");
+    if (cumCard) cumCard.style.display = "";
+    if (elevC) elevC.style.display = "";
+    destroyDetailCharts();
+  }
+}
 
-function showDetailHideCumulative() {
-  detailCard && (detailCard.style.display = "block");
-  const cum = document.getElementById("cumCard");
-  const elevC = document.getElementById("elevChart")?.closest(".card");
-  if (cum) cum.style.display = "none";
-  if (elevC) elevC.style.display = "none";
-}
-function hideDetailShowCumulative() {
-  detailCard && (detailCard.style.display = "none");
-  const cum = document.getElementById("cumCard");
-  const elevC = document.getElementById("elevChart")?.closest(".card");
-  if (cum) cum.style.display = "";
-  if (elevC) elevC.style.display = "";
-  destroyDetailCharts();
-}
 
 /* ===== 분석 실행 ===== */
 elAnalyze?.addEventListener("click", async () => {
   try {
-    /* if (elNativeInput?.files?.length) addFiles(elNativeInput.files); */
     const files = selectedFiles.slice();
     if (!files.length) { toast("GPX 파일을 선택해 주세요"); return; }
 
@@ -1113,7 +1147,8 @@ elAnalyze?.addEventListener("click", async () => {
     if (tbodySummary) tbodySummary.innerHTML = "";
     if (tbodyLaps) tbodyLaps.innerHTML = "";
     lastSummary = []; lastLaps = []; fileDistanceForChart = [];
-    sheet?.classList.remove("open");
+    // sheet?.classList.remove("open");
+    getOptionSheet()?.classList.remove("open");
     showProgress("파일 파싱 준비 중…");
 
     if (map) {
@@ -1131,7 +1166,6 @@ elAnalyze?.addEventListener("click", async () => {
     };
     if (lapsSection) lapsSection.style.display = files.length === 1 ? "block" : "none";
 
-    // [NEW] 단일 파일 상세 그래프용 시리즈 보관
     let detailSeries = null;
 
     for (let i = 0; i < files.length; i++) {
@@ -1159,25 +1193,13 @@ elAnalyze?.addEventListener("click", async () => {
 
       if (map && bounds) drawTrackLayer(file.name, analysis, colorMode, bounds);
 
-      // [NEW] 단일 파일 상세 그래프 시리즈 생성
-      if (files.length === 1) {
-        detailSeries = buildDetailSeries(analysis);
-      }
+      if (files.length === 1) detailSeries = buildDetailSeries(analysis);
 
-      // 랩(1개 파일일 때만)
       if (files.length === 1) {
         const laps = makeDistanceLaps(analysis, lapDistanceKm, {
           method, fileCalories, totalElapsedS: analysis.elapsedS, weightKg, age, sex
         });
         laps.forEach(lp => {
-          /*const row = {
-            file: file.name, lap: lp.lap, lap_km: round(lp.distKm, 3), lap_time: secToHMS(lp.timeS),
-            lap_avg_kmh: round(lp.avgKmh, 2), lap_pace: lp.pace, lap_elev_up_m: round(lp.elevUpM, 1),
-            lap_avg_hr: lp.avgHr ? Math.round(lp.avgHr) : "",
-            lap_avg_cad: lp.avgCad ? Math.round(lp.avgCad) : "",
-            lap_avg_pw: lp.avgPw ? Math.round(lp.avgPw) : "",
-            lap_kcal: lp.kcal != null ? Math.round(lp.kcal) : ""
-          }; */
           const row = {
             lap: lp.lap, lap_time: secToHMS(lp.timeS),
             lap_avg_kmh: round(lp.avgKmh, 2), lap_pace: lp.pace, lap_elev_up_m: round(lp.elevUpM, 1),
@@ -1186,19 +1208,12 @@ elAnalyze?.addEventListener("click", async () => {
             lap_avg_pw: lp.avgPw ? Math.round(lp.avgPw) : "",
             lap_kcal: lp.kcal != null ? Math.round(lp.kcal) : ""
           };
-
-
           lastLaps.push(row);
           const tr2 = document.createElement("tr");
-          /* tr2.innerHTML = `<td class="left">${row.file}</td><td>${row.lap}</td><td>${row.lap_km}</td><td>${row.lap_time}</td>
-                           <td>${row.lap_avg_kmh}</td><td>${row.lap_pace}</td><td>${row.lap_elev_up_m}</td>
-                           <td>${row.lap_avg_hr}</td><td>${row.lap_avg_cad}</td><td>${row.lap_avg_pw}</td><td>${row.lap_kcal}</td>`; */
           tr2.innerHTML = `<td class="left">${row.lap}</td>
-          <td>${row.lap_time}</td>
+                           <td>${row.lap_time}</td>
                            <td>${row.lap_avg_kmh}</td><td>${row.lap_pace}</td><td>${row.lap_elev_up_m}</td>
                            <td>${row.lap_avg_hr}</td><td>${row.lap_avg_cad}</td><td>${row.lap_avg_pw}</td><td>${row.lap_kcal}</td>`;
-
-
           tbodyLaps?.appendChild(tr2);
         });
       }
@@ -1235,6 +1250,9 @@ elAnalyze?.addEventListener("click", async () => {
       if (tss != null) agg.tss += tss;
 
       // 요약 행
+      const startTime = points?.[0]?.t instanceof Date ? points[0].t : null;
+      const baseLabel = startTime ? ymd(startTime) : "0000-00-00";                     // 🧹 REFACTOR: ymd 유틸 사용
+      const label = `${baseLabel} · ${file.name}`;
       const sumRow = {
         file: file.name,
         total_km: round(analysis.totalDistM / 1000, 3),
@@ -1256,15 +1274,10 @@ elAnalyze?.addEventListener("click", async () => {
         if: Number.isFinite(ifVal) ? ifVal.toFixed(2) : "",
         tss: Number.isFinite(tss) ? Math.round(tss) : ""
       };
+      console.log(sumRow)
       lastSummary.push(sumRow);
       renderSummaryRow(sumRow);
 
-      // 누적 차트용 데이터
-      const startTime = points?.[0]?.t instanceof Date ? points[0].t : null;
-      const baseLabel = startTime
-        ? `${startTime.getFullYear()}-${String(startTime.getMonth() + 1).padStart(2, "0")}-${String(startTime.getDate()).padStart(2, "0")}`
-        : "0000-00-00";
-      const label = `${baseLabel} · ${file.name}`;
       fileDistanceForChart.push({
         label,
         date: startTime ? +startTime : 0,
@@ -1301,19 +1314,74 @@ elAnalyze?.addEventListener("click", async () => {
       renderSummaryRow(totalRow, { total: true });
     }
 
-    // [표시 분기] 단일 파일이면 상세 3그래프 표시, 아니면 누적 차트 표시
+
+
+    // ============ 요약 테이블 정렬(합계 고정 + 화살표 클래스) ============
+    function initSummarySorting() {
+      const table = document.getElementById('summaryTable');
+      if (!table || table.dataset.sortReady === '1') return;
+      table.dataset.sortReady = '1';
+
+      const thead = table.tHead;
+      const tbody = table.tBodies[0]; // 데이터 행만
+
+      thead.addEventListener('click', (e) => {
+        const th = e.target.closest('th[data-col]');
+        if (!th) return;
+
+        const col = th.dataset.col;
+        const dir = th.classList.contains('sort-asc') ? -1 : 1;
+
+        // 화살표 갱신
+        thead.querySelectorAll('th[data-col]').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+        th.classList.add(dir === 1 ? 'sort-asc' : 'sort-desc');
+
+        const rows = Array.from(tbody.rows); // ← tfoot 건드리지 않음
+        rows.sort((a, b) => {
+          const ta = a.querySelector(`[data-col="${col}"]`)?.textContent?.trim() ?? '';
+          const tb = b.querySelector(`[data-col="${col}"]`)?.textContent?.trim() ?? '';
+          const va = extractValue(ta);
+          const vb = extractValue(tb);
+          const cmp = (typeof va === 'number' && typeof vb === 'number')
+            ? (va - vb)
+            : String(va).localeCompare(String(vb), 'ko');
+          return cmp * dir;
+        });
+
+        rows.forEach(r => tbody.appendChild(r)); // tbody만 재삽입
+      });
+
+      function extractValue(s) {
+        const txt = (s || '').trim();
+        if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(txt)) return hhmmssToSec(txt); // 03:47 or 01:44:37
+        const num = parseFloat(txt.replace(/[^0-9.\-]/g, ''));
+        if (!Number.isNaN(num)) return num;
+        return txt.toLowerCase();
+      }
+      function hhmmssToSec(str) {
+        const p = str.split(':').map(n => parseInt(n, 10)).reverse();
+        return p.reduce((acc, v, i) => acc + (v || 0) * Math.pow(60, i), 0);
+      }
+    }
+
+    // 페이지 로드 후 단 1회
+    initSummarySorting();
+
+
+
+
+
+
+
+
+    // [표시 분기]
     if (files.length === 1 && detailSeries) {
-      showDetailHideCumulative();
+      setDetailMode(true);                             // 🧹 REFACTOR
       renderDetailCharts(detailSeries);
     } else {
-      hideDetailShowCumulative();
-      const { labels, cumulative, total } = makeCumulativeSeries(fileDistanceForChart, "file");
-      renderCumulativeChart(labels, cumulative);
-      if (labels.length && cumHint) {
-        const first = labels[0]?.split(" · ")[0]; const last = labels.at(-1)?.split(" · ")[0];
-        cumHint.textContent = `표시: FILE  ·  기간: ${first} ~ ${last}  ·  항목 ${labels.length}개  ·  총 ${total.toFixed(2)} km`;
-      }
-      updateElevationChart(document.getElementById("elevMode")?.value || "file");
+      setDetailMode(false);                            // 🧹 REFACTOR
+      updateCumulativeChart(fileDistanceForChart, "file");
+      updateElevationChart(fileDistanceForChart, document.getElementById("elevMode")?.value || "file");
     }
 
     if (map && bounds && bounds.isValid()) map.fitBounds(bounds.pad(0.1));
@@ -1328,20 +1396,15 @@ elAnalyze?.addEventListener("click", async () => {
 cumModeSel?.addEventListener("change", () => {
   if (!fileDistanceForChart.length) { cumCard && (cumCard.style.display = "none"); return; }
   const mode = cumModeSel.value || "file";
-  const { labels, cumulative, total } = makeCumulativeSeries(fileDistanceForChart, mode);
-  renderCumulativeChart(labels, cumulative);
-  if (labels.length && cumHint) {
-    const first = labels[0].split(" · ")[0];
-    const last = labels.at(-1).split(" · ")[0];
-    cumHint.textContent = `표시: ${mode.toUpperCase()}  ·  기간: ${first} ~ ${last}  ·  항목 ${labels.length}개  ·  총 ${total.toFixed(2)} km`;
-  } else { if (cumHint) cumHint.textContent = ""; }
+  updateCumulativeChart(fileDistanceForChart, mode);
 });
+elevModeSel?.addEventListener("change", () => updateElevationChart(fileDistanceForChart, elevModeSel.value));
 
 /* ===== 내보내기 ===== */
 elExportSummary?.addEventListener("click", () => {
-  const csv = toCSV(lastSummary); downloadCSV("gpx_summary.csv", csv); toast("요약 CSV 저장 완료");
+  const csv = toCSV(lastSummary); downloadCSV("gpx_summary.csv", csv); toast("주행 요약 CSV 저장 완료");
 });
 elExportLaps?.addEventListener("click", () => {
   if (!lastLaps.length) { toast("랩 데이터가 없습니다"); return; }
-  const csv = toCSV(lastLaps); downloadCSV("gpx_laps.csv", csv); toast("랩 CSV 저장 완료");
+  const csv = toCSV(lastLaps); downloadCSV("gpx_laps.csv", csv); toast("랩(구간) 기록 CSV 저장 완료");
 });
