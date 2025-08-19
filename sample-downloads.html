@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="utf-8">
+    <title>샘플 GPX 다운로드</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+        :root {
+            --line: #e9ecef;
+            --ink: #222;
+            --muted: #666;
+            --brand: #2e7d32;
+            --bg: #fff;
+            --bg-soft: #f7f9fb;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', system-ui, sans-serif;
+            color: var(--ink);
+            background: var(--bg)
+        }
+
+        header {
+            position: sticky;
+            top: 0;
+            background: var(--bg);
+            border-bottom: 1px solid var(--line);
+            padding: 14px 16px
+        }
+
+        h1 {
+            font-size: 18px;
+            margin: 0
+        }
+
+        main {
+            padding: 14px 16px
+        }
+
+        .muted {
+            color: var(--muted);
+            font-size: 13px
+        }
+
+        .list {
+            margin-top: 12px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            overflow: hidden
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 10px;
+            align-items: center;
+            padding: 10px 12px;
+            border-top: 1px solid var(--line);
+            background: #fff
+        }
+
+        .row:first-child {
+            border-top: 0
+        }
+
+        .row:hover {
+            background: var(--bg-soft)
+        }
+
+        .name {
+            font-weight: 600
+        }
+
+        .url {
+            font-size: 12px;
+            color: #4a4a4a;
+            word-break: break-all
+        }
+
+        .bar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 14px
+        }
+
+        .left {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap
+        }
+
+        button {
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: #fff;
+            cursor: pointer
+        }
+
+        .btn-primary {
+            background: #2e7d32;
+            color: #fff;
+            border-color: #2a6f2e
+        }
+
+        .btn-danger {
+            background: #d6336c;
+            color: #fff;
+            border-color: #c12558
+        }
+
+        .btn-outline {
+            background: #fff
+        }
+
+        .btn-primary:disabled {
+            filter: grayscale(.2) opacity(.6);
+            cursor: not-allowed
+        }
+
+        .count {
+            font-weight: 700
+        }
+
+        progress {
+            width: 100%;
+            height: 10px
+        }
+
+        footer {
+            border-top: 1px solid var(--line);
+            padding: 12px 16px;
+            margin-top: 16px;
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end
+        }
+
+        .chips {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 6px
+        }
+
+        .chip {
+            padding: 4px 8px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: #fff;
+            font-size: 12px
+        }
+
+        label.cb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            user-select: none;
+            cursor: pointer
+        }
+
+        /* 추가 */
+        .url{ display:none !important; }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>샘플 GPX 다운로드</h1>
+        <div class="muted">받을 파일을 체크 → <b>다운로드</b> 버튼</div>
+    </header>
+
+    <main>
+        <div class="left">
+            <label class="cb"><input id="checkAll" type="checkbox"> 전체 선택</label>
+            <span class="muted">선택: <span id="selCount" class="count">0</span> 개</span>
+        </div>
+
+        <div id="list" class="list" role="listbox" aria-label="샘플 파일 목록"></div>
+
+        <div class="bar">
+            <div class="left">
+                <button id="btnDownload" class="btn-primary" disabled>다운로드</button>
+                <button id="btnClear" class="btn-outline">선택 해제</button>
+            </div>
+            <div class="muted" id="status">대기 중…</div>
+        </div>
+
+        <div style="margin-top:10px;display:none" id="progWrap">
+            <progress id="prog" value="0" max="100"></progress>
+            <div class="muted" id="progText"></div>
+            <div class="chips" id="doneChips"></div>
+        </div>
+    </main>
+
+    <footer>
+        <button id="btnClose" class="btn-danger">닫기</button>
+    </footer>
+
+    <script>
+        // ✅ 내려받을 샘플 목록만 이 배열에서 관리하면 됩니다.
+        // url 은 CORS 허용이 되어야 합니다. (raw.githubusercontent.com 가능)
+        const SAMPLE_FILES = [
+            {
+                name: '0411_천호벗꽃라이딩챌린지.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/main/0411_%EC%B2%9C%ED%98%B8%EB%B2%97%EA%BD%83%EB%9D%BC%EC%9D%B4%EB%94%A9%EC%B1%8C%EB%A6%B0%EC%A7%80.gpx'
+            },
+            // { name: '예시_2.gpx', url: 'https://.../sample2.gpx' },
+            // { name: '예시_3.gpx', url: 'https://.../sample3.gpx' },
+            {
+                name: '0428.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0428.gpx'
+            },
+            {
+                name: '0430.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0430.gpx'
+            },
+            {
+                name: '0502.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0502.gpx'
+            },
+            {
+                name: '0507.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0507.gpx'
+            },
+            {
+                name: '0512.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0512.gpx'
+            },
+            {
+                name: '0513.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0513.gpx'
+            },
+            {
+                name: '0519.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0519.gpx'
+            },
+            {
+                name: '0520.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0520.gpx'
+            },
+            {
+                name: '0521.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0521.gpx'
+            },
+            {
+                name: '0523.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0523.gpx'
+            },
+            {
+                name: '0524_제9회_경기_친환경_자전거_페스티벌.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0524_%EC%A0%9C9%ED%9A%8C_%EA%B2%BD%EA%B8%B0_%EC%B9%9C%ED%99%98%EA%B2%BD_%EC%9E%90%EC%A0%84%EA%B1%B0_%ED%8E%98%EC%8A%A4%ED%8B%B0%EB%B2%8C.gpx'
+            },
+            {
+                name: '0526.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0526.gpx'
+            },
+            {
+                name: '0527.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0527.gpx'
+            },
+            {
+                name: '0528.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0528.gpx'
+            },
+            {
+                name: '0530.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0530.gpx'
+            },
+            {
+                name: '0602.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0602.gpx'
+            },
+            {
+                name: '0603.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0603.gpx'
+            },
+            {
+                name: '0609.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0609.gpx'
+            },
+            {
+                name: '0611.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0611.gpx'
+            },
+            {
+                name: '0616.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0616.gpx'
+            },
+            {
+                name: '0617.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0617.gpx'
+            },
+            {
+                name: '0623.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0623.gpx'
+            },
+            {
+                name: '0627.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0627.gpx'
+            },
+            {
+                name: '0702.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0702.gpx'
+            },
+            {
+                name: '0705_익산 비단가람 자전거투어.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0705_%EC%9D%B5%EC%82%B0%20%EB%B9%84%EB%8B%A8%EA%B0%80%EB%9E%8C%20%EC%9E%90%EC%A0%84%EA%B1%B0%ED%88%AC%EC%96%B4.gpx'
+            },
+            {
+                name: '0721.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0721.gpx'
+            },
+            {
+                name: '0722.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0722.gpx'
+            },
+            {
+                name: '0804.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0804.gpx'
+            },
+            {
+                name: '0805.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0805.gpx'
+            },
+            {
+                name: '0806.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0806.gpx'
+            },
+            {
+                name: '0809_태백_삼척.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0809_%ED%83%9C%EB%B0%B1_%EC%82%BC%EC%B2%99.gpx'
+            },
+            {
+                name: '0811.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0811.gpx'
+            },
+            {
+                name: '0818.gpx',
+                url: 'https://raw.githubusercontent.com/yoosh97/cycling/refs/heads/main/0818.gpx'
+            }
+
+        ];
+
+        const $ = (s) => document.querySelector(s);
+        const list = $('#list');
+        const selCount = $('#selCount');
+        const checkAll = $('#checkAll');
+        const btnDownload = $('#btnDownload');
+        const btnClear = $('#btnClear');
+        const statusEl = $('#status');
+        const progWrap = $('#progWrap');
+        const prog = $('#prog');
+        const progText = $('#progText');
+        const doneChips = $('#doneChips');
+
+        // 목록 렌더
+        function renderList() {
+            list.innerHTML = '';
+            SAMPLE_FILES.forEach((f, i) => {
+                const row = document.createElement('div');
+                row.className = 'row';
+                row.innerHTML = `
+          <label class="cb"><input type="checkbox" data-idx="${i}"></label>
+          <div>
+            <div class="name">${f.name}</div>
+            <div class="url">${f.url}</div>
+          </div>
+          <div></div>`;
+                list.appendChild(row);
+            });
+        }
+        renderList();
+
+        function getSelectedIdx() {
+            return [...list.querySelectorAll('input[type="checkbox"]:checked')].map(cb => +cb.dataset.idx);
+        }
+        function updateUI() {
+            const n = getSelectedIdx().length;
+            selCount.textContent = n;
+            btnDownload.disabled = n === 0;
+            // 체크박스 전체 상태 동기화
+            const all = list.querySelectorAll('input[type="checkbox"]').length;
+            checkAll.checked = (n > 0 && n === all);
+            checkAll.indeterminate = (n > 0 && n < all);
+        }
+        list.addEventListener('change', (e) => {
+            if (e.target.matches('input[type="checkbox"]')) updateUI();
+        });
+        checkAll.addEventListener('change', () => {
+            const cbs = list.querySelectorAll('input[type="checkbox"]');
+            cbs.forEach(cb => cb.checked = checkAll.checked);
+            updateUI();
+        });
+        btnClear.addEventListener('click', () => {
+            list.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+            updateUI();
+        });
+
+        // 파일 저장 유틸
+        function saveBlobAs(name, blob) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1200);
+        }
+
+        async function fetchAsBlob(url) {
+            const res = await fetch(url, { mode: 'cors' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.blob();
+        }
+
+        function setStatus(t) { statusEl.textContent = t; }
+
+        // 다운로드 실행
+        btnDownload.addEventListener('click', async () => {
+            const idxs = getSelectedIdx();
+            if (!idxs.length) return;
+
+            btnDownload.disabled = true;
+            progWrap.style.display = 'block';
+            doneChips.innerHTML = '';
+            prog.value = 0; prog.max = idxs.length;
+
+            setStatus(`다운로드 준비…`);
+
+            let ok = 0, fail = 0;
+
+            for (let i = 0; i < idxs.length; i++) {
+                const f = SAMPLE_FILES[idxs[i]];
+                setStatus(`(${i + 1}/${idxs.length}) ${f.name} 받는 중…`);
+                progText.textContent = `${i + 1} / ${idxs.length}`;
+                try {
+                    const blob = await fetchAsBlob(f.url);
+                    saveBlobAs(f.name, blob);
+                    ok++;
+                    const chip = document.createElement('span');
+                    chip.className = 'chip'; chip.textContent = f.name;
+                    doneChips.appendChild(chip);
+                } catch (err) {
+                    console.warn(err);
+                    fail++;
+                    const chip = document.createElement('span');
+                    chip.className = 'chip'; chip.style.borderColor = '#f03e3e'; chip.style.color = '#a61e4d';
+                    chip.textContent = `실패: ${f.name}`;
+                    doneChips.appendChild(chip);
+                } finally {
+                    prog.value = i + 1;
+                }
+            }
+
+            setStatus(`완료: 성공 ${ok}개 · 실패 ${fail}개`);
+            btnDownload.disabled = false;
+
+            // 브라우저에 따라 "다중 파일 다운로드 허용" 확인 팝업이 뜰 수 있습니다.
+        });
+
+        // 닫기
+        document.getElementById('btnClose').addEventListener('click', () => {
+            // 팝업으로 열린 창이면 정상 종료
+            window.close();
+        });
+
+        // 최초 상태 업데이트
+        updateUI();
+    </script>
+</body>
+
+</html>
