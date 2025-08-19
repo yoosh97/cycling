@@ -1,21 +1,18 @@
 @charset "utf-8";
 
 @import url('https://fastly.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css');
-
 @font-face {
   font-family: 'Galmuri11-Condensed';
   src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/2506-1@1.0/Galmuri11-Condensed.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
 }
-
 @font-face {
     font-family: 'Paperlogy-8ExtraBold';
     src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8ExtraBold.woff2') format('woff2');
     font-weight: 400;
     font-style: normal;
 }
-
 @font-face {
     font-family: 'JalnanGothic';
     src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_231029@1.1/JalnanGothic.woff') format('woff');
@@ -31,7 +28,12 @@
   --muted: #666;
   --bg-soft: #f8f9fa;
   --line: #e9ecef;
+  --mark-yellow: #fff9db; /* 옅은 노랑 */
 }
+* {
+  box-sizing: border-box
+}
+
 
 /* 헤더/컨테이너/기본 UI 스타일 유지 */
 header {
@@ -68,9 +70,6 @@ header p {
   line-height: 100%;
 }
 
-* {
-  box-sizing: border-box
-}
 
 html,
 body {
@@ -96,21 +95,13 @@ body {
 
 
 
-
-
-
 /* 본문 */
 .container {
   padding: 12px 16px 120px
 }
 
-/* .toolbar {
-  display: flex;
-  gap: 8px;
-  align-items: center
-} */
 
-.toolbar {
+.file-toolbar {
   position: relative;
   display: flex;
   align-items: center;
@@ -127,12 +118,6 @@ body {
   background: #fff;
 }
 
-
-/* #fileCountLabel.muted {
-  color: var(--muted);
-  font-size: 16px;
-  font-weight: 500;
-} */
 #fileCountLabel {
   position: absolute;
   left: 100px;top: 15px;
@@ -143,12 +128,10 @@ body {
 }
 
 /* 예시: 공통 Flex Row 클래스 적용 예 */
-.sheet .opt-row,
+#optionSheet .opt-row,
 #metricSheet .opt-row {
   composes: flex-wrap-row;
 }
-
-
 
 .muted {
   color: var(--muted);
@@ -217,12 +200,17 @@ td {
   text-align: right
 }
 
-th {
+/* th {
   background: #fafafa;
   position: sticky;
   top: 54px;
   z-index: 5
-}
+} */
+#summaryTable thead th {
+  position: sticky;
+  top: 0;              /* 컨테이너 기준 0 */
+  z-index: 5;
+} 
 
 td.left,
 th.left {
@@ -244,11 +232,6 @@ tr.total-row {
   box-shadow: 0 4px 16px rgba(0, 0, 0, .04)
 }
 
-/* .card h3 {
-  margin: 4px 0 8px;
-  font-size: 16px
-} */
-
 .chart-toolbar {
   display: flex;
   gap: 8px;
@@ -262,10 +245,6 @@ tr.total-row {
   height: 300px
 }
 
-
-.container {
-  padding: 12px 16px 120px;
-}
 
 
 /* 기본(모바일) 공통 */
@@ -330,40 +309,74 @@ header {
 
 
 
-/* .sample-link {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #2e7d32;
-  text-decoration: none;
+
+/* 공통: 옵션 행 */
+.opt-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 10px;
 }
 
-.sample-link:hover {
-  text-decoration: underline;
-} */
+.opt-row > * {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  padding: 0;
+}
 
+.opt-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  font-size: 14px;
+}
 
+.opt-row input[type="number"],
+.opt-row select {
+  width: 8.5rem;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  font-size: 16px;
+  background: #fff;
+}
 
+.opt-row input[type="checkbox"] {
+  margin-right: 6px;
+}
 
-/* 바텀시트 */
+.opt-row .muted {
+  white-space: nowrap;
+}
+
+/* bottom sheet 공통 스타일 */
 .sheet {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: -100%;
-  background: #fff;
-  border-top-left-radius: 16px;
-  border-top-right-radius: 16px;
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, .15);
-  transition: bottom .25s ease;
-  max-height: 80vh;
+  bottom: 0;
+  max-height: 85vh;
   overflow: auto;
-  padding: 16px;
+  background: #fff;
+  border-radius: 16px 16px 0 0;
   border-top: 1px solid var(--line);
+  padding: 16px;
   z-index: 2000;
+  transform: translateY(100%);
+  opacity: 0;
+  visibility: hidden;
+  transition: transform 0.28s ease, opacity 0.2s ease, visibility 0s linear 0.28s;
 }
 
 .sheet.open {
-  bottom: 0
+  transform: translateY(0);
+  opacity: 1;
+  visibility: visible;
+  transition: transform 0.28s ease, opacity 0.2s ease;
 }
 
 .sheet .grab {
@@ -371,39 +384,9 @@ header {
   height: 5px;
   border-radius: 999px;
   background: #ddd;
-  margin: 0 auto 10px
+  margin: 0 auto 10px;
 }
 
-/* ✅ 옵션 행/라벨 정렬 — 첫 이미지처럼 보이도록 핵심 변경 */
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 12px;
-  align-items: center;
-  justify-content: flex-start;
-  /* ← space-between 제거 */
-  margin-bottom: 10px;
-}
-
-.row label {
-  display: inline-flex;
-  /* 라벨과 인풋을 한 줄 세트 */
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-  font-size: 14px;
-}
-
-input[type="number"],
-select {
-  width: 8.5rem;
-  /* 모든 컨트롤 폭 통일 */
-  padding: 10px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  font-size: 16px;
-  background: #fff;
-}
 
 /* FTP 도움말은 줄바꿈 방지 */
 .row .muted {
@@ -485,82 +468,11 @@ select {
 
 
 
-#sheet .opt-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 12px;
-  align-items: center;
-  justify-content: flex-start;
-  margin-bottom: 10px;
-}
-
-#sheet .opt-row>* {
-  flex: 0 0 auto;
-  width: auto;
-  max-width: none;
-  padding: 0;
-}
-
-#sheet label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-  font-size: 14px;
-}
-
-#sheet input[type="number"],
-#sheet select {
-  width: 8.5rem;
-  padding: 10px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  font-size: 16px;
-  background: #fff;
-}
-
-#sheet input[type="checkbox"] {
-  margin-right: 6px;
-}
-
-#sheet .muted {
-  white-space: nowrap;
-}
-
-
-#metricSheet .opt-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 12px;
-  align-items: center;
-  justify-content: flex-start;
-  margin-bottom: 10px;
-}
-
-#metricSheet .opt-row>* {
-  flex: 0 0 auto;
-  width: auto;
-  max-width: none;
-  padding: 0;
-}
-
-#metricSheet label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-  font-size: 14px;
-}
-
-#metricSheet input[type="checkbox"] {
-  margin: 0;
-  width: 16px;
-  height: 16px;
-}
 
 
 
-.toolbar input[type="file"].file-input {
+
+.file-toolbar input[type="file"].file-input {
   /* 필드 박스 제거 */
   width: auto !important;
   /* ⬅ 폭 자동: 버튼 크기만 */
@@ -586,13 +498,13 @@ input[type="file"].file-input:hover {
 
 
 /* 포커스시 박스 그림자/외곽선도 제거 */
-.toolbar input[type="file"].file-input:focus {
+.file-toolbar input[type="file"].file-input:focus {
   outline: none !important;
   box-shadow: none !important;
 }
 
 /* 실제 버튼 스타일(유지/원하는대로) */
-.toolbar input[type="file"].file-input::file-selector-button {
+.file-toolbar input[type="file"].file-input::file-selector-button {
   margin-right: 12px;
   padding: 0.75rem 1.1rem;
   border: none;
@@ -606,12 +518,12 @@ input[type="file"].file-input:hover {
   box-shadow: 0 6px 16px rgba(46, 125, 50, .28);
 }
 
-.toolbar input[type="file"].file-input:hover::file-selector-button {
+.file-toolbar input[type="file"].file-input:hover::file-selector-button {
   filter: brightness(1.05);
   box-shadow: 0 8px 18px rgba(46, 125, 50, .35);
 }
 
-.toolbar input[type="file"].file-input:active::file-selector-button {
+.file-toolbar input[type="file"].file-input:active::file-selector-button {
   transform: translateY(1px);
 }
 
@@ -632,7 +544,7 @@ input[type="file"].file-input:disabled::file-selector-button {
 }
 
 /* 툴바에서 한 줄 정렬이 안 되면 추가 */
-.toolbar {
+.file-toolbar {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -640,7 +552,7 @@ input[type="file"].file-input:disabled::file-selector-button {
   /* 창이 좁을 때 줄바꿈 */
 }
 
-
+th .sort-arrow { margin-left: 4px; color: #889; font-size: 12px; }
 
 /* 다크 모드 대응(선택) */
 @media (prefers-color-scheme: dark) {
@@ -718,4 +630,81 @@ input[type="file"].file-input:disabled::file-selector-button {
 .chartTitle::after {
   right: -50px;
   transform: translateY(-50%);
+}
+
+
+
+/* ============ summaryTable 상단 라인 표시 ============ */
+#summaryTable{
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  width: 100%;
+}
+
+/* 헤더 윗줄 표시 */
+#summaryTable thead th{
+  border-top: 1px solid var(--line) !important;
+  position: sticky;     /* 기존 sticky 유지 */
+  top: 0;               /* 환경 따라 바꾸면 됨: var(--sticky-offset) 사용도 가능 */
+  z-index: 5;
+  background: #fafafa;  /* 붙었을 때도 라인이 선명하게 보이도록 */
+}
+
+/* 부트스트랩/테마가 thead에 그리는 가짜 라인은 끔(중복 방지) */
+#summaryTable thead::before,
+#summaryTable thead::after{
+  content: none !important;
+  display: none !important;
+}
+
+/* 첫 데이터 행의 윗줄은 지워서 이중 라인 방지 */
+#summaryTable tbody tr:first-child td{
+  border-top: 0 !important;
+}
+
+/* ============ 정렬 화살표 ============ */
+#summaryTable th[data-col]{
+  position: relative;
+  padding-right: 18px; /* 화살표 자리 */
+  cursor: pointer;
+}
+#summaryTable th[data-col].sort-asc::after,
+#summaryTable th[data-col].sort-desc::after{
+  position: absolute;
+  right: 6px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #333;
+}
+#summaryTable th[data-col].sort-asc::after  { content: "▲"; }
+#summaryTable th[data-col].sort-desc::after { content: "▼"; }
+
+/* 합계행(푸터) 스타일 */
+#summaryTable tfoot tr.total-row {
+  background: #eef8ff;
+  font-weight: 600;
+}
+#summaryTable tfoot td {
+  border-top: 1px solid var(--line);
+}
+
+/* 카드 맨 위 보더가 헤더 위로 보일 때 */
+/* .midTitle + #summaryTable thead th { border-top: 0 !important; }
+.card > #summaryTable thead th { border-top: 0 !important; } */
+
+/* 헤더 포함: 3개 컬럼 전체에 배경 적용 */
+#summaryTable th[data-col="avg_kmh_moving"],
+#summaryTable th[data-col="elev_gain_m"],
+#summaryTable th[data-col="avg_hr"],
+#summaryTable tbody td[data-col="avg_kmh_moving"],
+#summaryTable tbody td[data-col="elev_gain_m"],
+#summaryTable tbody td[data-col="avg_hr"]{
+  background: var(--mark-yellow) !important;
+}
+
+/* 합계 행은 기존 파란 배경 유지하고 싶다면(권장): 합계행은 노랑 제외 */
+#summaryTable tbody tr.total-row td[data-col="avg_kmh_moving"],
+#summaryTable tbody tr.total-row td[data-col="elev_gain_m"],
+#summaryTable tbody tr.total-row td[data-col="avg_hr"]{
+  background: inherit !important;  /* 기존 total-row 배경(#eef8ff) 유지 */
 }
