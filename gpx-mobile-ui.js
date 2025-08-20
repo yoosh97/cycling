@@ -987,6 +987,26 @@ function redrawQuadrant() {
   const q11PointBorderWidth = (ctx) => (ctx.dataIndex === quadHiIndex ? 2 : 0);
   const q11PointBorderColor = '#111';
 
+    // ── [ADD] 데이터+기준선 포함한 축 범위와 마진 계산 ─────────────────
+  const allPts = [...buckets.q11, ...buckets.q10, ...buckets.q01, ...buckets.q00];
+  const xs = allPts.map(p => p.x);
+  const ys = allPts.map(p => p.y);
+
+  // 기준선도 화면 안에 들어오도록 포함
+  const xMin0 = Math.min(...xs, x0);
+  const xMax0 = Math.max(...xs, x0);
+  const yMin0 = Math.min(...ys, y0);
+  const yMax0 = Math.max(...ys, y0);
+
+  // 여유 마진(범위의 6%), 최소 여유 보정
+  const xPad = Math.max(0.2, (xMax0 - xMin0) * 0.06);
+  const yPad = Math.max(1,   (yMax0 - yMin0) * 0.06);
+
+  const xSuggestedMin = xMin0 - xPad;
+  const xSuggestedMax = xMax0 + xPad;
+  const ySuggestedMin = yMin0 - yPad;
+  const ySuggestedMax = yMax0 + yPad;
+
   // 차트 생성/갱신
   quadChart?.destroy();
   const ctx = document.getElementById('quadChart').getContext('2d');
@@ -998,9 +1018,9 @@ function redrawQuadrant() {
     data: {
       datasets: [
         { label: '빠름·고심박', data: buckets.q11, parsing: false, pointRadius: q11PointRadius, pointBorderWidth: q11PointBorderWidth, pointBorderColor: q11PointBorderColor, backgroundColor: css('--q1') },
-        { label: '빠름·저심박', data: buckets.q10, parsing: false, pointRadius: 4, backgroundColor: css('--q2') },
-        { label: '느림·고심박', data: buckets.q01, parsing: false, pointRadius: 4, backgroundColor: css('--q3') },
-        { label: '느림·저심박', data: buckets.q00, parsing: false, pointRadius: 4, backgroundColor: css('--q4') }
+        { label: '빠름·저심박', data: buckets.q10, parsing: false, pointRadius: 4, backgroundColor: css('--q2'), clip: false },
+        { label: '느림·고심박', data: buckets.q01, parsing: false, pointRadius: 4, backgroundColor: css('--q3'), clip: false },
+        { label: '느림·저심박', data: buckets.q00, parsing: false, pointRadius: 4, backgroundColor: css('--q4'), clip: false }
       ]
     },
     options: {
@@ -1021,6 +1041,7 @@ function redrawQuadrant() {
           },
           align: 'center'               // left | center | right
         },
+        layout: { padding: { top: 10, right: 16, bottom: 8, left: 12 } },
         legend: { position: 'bottom' },
         tooltip: {
           callbacks: {
@@ -1032,9 +1053,19 @@ function redrawQuadrant() {
           target: { datasetIndex: 0, index: quadHiIndex, text: buckets.q11[quadHiIndex].label }
         } : {}
       },
-      scales: {
-        x: { title: { display: true, text: '평속 (km/h)' } },
-        y: { title: { display: true, text: '평균심박 (bpm)' } }
+       scales: {
+        x: {
+          title: { display: true, text: '평속 (km/h)' },
+          suggestedMin: xSuggestedMin,
+          suggestedMax: xSuggestedMax,
+          grace: '3%'  // 선택: 끝단 여유 더 주기
+        },
+        y: {
+          title: { display: true, text: '평균심박 (bpm)' },
+          suggestedMin: ySuggestedMin,
+          suggestedMax: ySuggestedMax,
+          grace: '3%'  // 선택
+        }
       }
     }
   });
@@ -1211,7 +1242,8 @@ function renderAreaLineChart(ctxId, { labels, data, color, label, yTitle, yUnit,
 
   const chart = new Chart(ctx, {
     type: "line",
-    data: { labels, datasets: [{ label, data, tension: 0.35, fill: true, backgroundColor: gradient, borderColor: c1, borderWidth: 2, pointRadius: 2.5, pointHoverRadius: 4, pointHitRadius: 12 }] },
+    data: { labels, datasets: [
+      { label, data, tension: 0.35, fill: true, backgroundColor: gradient, borderColor: c1, borderWidth: 2, pointRadius: 2.5, pointHoverRadius: 4, pointHitRadius: 12 }] },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
