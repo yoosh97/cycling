@@ -179,6 +179,8 @@ body {
   overflow: hidden;
   border: 1px solid var(--line)
 }
+#map { height: 420px; }
+
 
 .map-toolbar {
   display: flex;
@@ -244,6 +246,8 @@ tr.total-row {
   position: relative;
   height: 300px
 }
+
+.card canvas { min-height: 280px; }
 
 
 
@@ -611,6 +615,10 @@ th .sort-arrow { margin-left: 4px; color: #889; font-size: 12px; }
   border-radius: 4px;
 }
 
+#quadCard .chartTitle {
+    top: 20px; /* 캔버스보다 위에 뜨게 */
+}
+
 
 .chartTitle::before,
 .chartTitle::after {
@@ -708,3 +716,69 @@ th .sort-arrow { margin-left: 4px; color: #889; font-size: 12px; }
 #summaryTable tbody tr.total-row td[data-col="avg_hr"]{
   background: inherit !important;  /* 기존 total-row 배경(#eef8ff) 유지 */
 }
+
+
+
+
+
+/* ========== QUADRANT STYLES ========== */
+:root {
+  --q1: #fa5252; /* 빠름·고심박 */
+  --q2: #40c057; /* 빠름·저심박 */
+  --q3: #fab005; /* 느림·고심박 */
+  --q4: #74c0fc; /* 느림·저심박 */
+  --quad-line: #e9ecef;
+  --quad-ink: #222;
+  --quad-muted: #666;
+  --quad-bg: #fff;
+}
+
+#quadCard .legend {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+#quadCard .legend .dot {
+  width: 10px; height: 10px; border-radius: 999px; display: inline-block; margin-right: 6px;
+}
+#quadCard .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+#quadCard .muted { color: var(--quad-muted); font-size: 13px; }
+#quadCard input[type="number"],
+#quadCard select {
+  padding: 8px 10px; border: 1px solid var(--quad-line); border-radius: 10px;
+}
+#quadCard .box {
+  border: 1px solid var(--quad-line);
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+}
+#quadCard .box h4 { margin: 0 0 6px; font-size: 14px; }
+#quadCard .grid { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+@media (min-width: 900px) {
+  #quadCard .grid.quad-summary { grid-template-columns: repeat(4, 1fr); }
+}
+
+
+/* ===== Chart area sizing ===== */
+.chart-wrap {
+  height: 360px;           /* 기본 높이 */
+  position: relative;
+}
+
+@media (min-width: 768px) {
+  .chart-wrap { height: 420px; }
+}
+
+@media (min-width: 1200px) {
+  .chart-wrap { height: 480px; }
+}
+
+/* 캔버스가 부모 높이를 100% 채우도록 */
+.chart-wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
