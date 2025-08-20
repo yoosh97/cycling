@@ -63,6 +63,7 @@
 
     <!-- summaryTable -->
     <h2 class="midTitle" style="margin-top:50px;">파일별 요약</h2>
+    <!-- <button id="openQuadrantBtn" class="btn btn-secondary">평속×심박 매트릭스</button> -->
     <table id="summaryTable">
       <thead>
         <tr>
@@ -90,6 +91,67 @@
       <tbody></tbody>
       <tfoot></tfoot> <!-- ← 합계 전용 영역 -->
     </table>
+
+    <!-- ▼▼▼ 추가: 평속×심박 2×2 매트릭스 카드 ▼▼▼ -->
+    <section id="quadCard" class="card" style="display:none; padding-top:20px;">
+      <!-- <h3  class = "chartTitle">속도·심박 매트릭스</h3> -->
+      <div class="row" style="justify-content:space-between; align-items:center; gap:10px;">
+      
+        <div style="margin-top:10px">
+          
+          <canvas id="quadChart" style="height:600px"></canvas>
+        </div>
+        <div class="muted" id="quadStatus" style="margin-top:6px">대기 중…</div>
+
+        <aside class="grid quad-summary" style="margin-top:12px;">
+          <div class="box legend">
+            <span><i class="dot" style="background:var(--q1)"></i>빠름·고심박</span>
+            <div id="quadC11">-</div>
+          </div>
+          <div class="box legend">
+            <span><i class="dot" style="background:var(--q2)"></i>빠름·저심박</span>
+            <div id="quadC10">-</div>
+          </div>
+          <div class="box legend">
+            <span><i class="dot" style="background:var(--q3)"></i>느림·고심박</span>
+            <div id="quadC01">-</div>
+          </div>
+          <div class="box legend">
+            <span><i class="dot" style="background:var(--q4)"></i>느림·저심박</span>
+            <div id="quadC00">-</div>
+          </div>
+        </aside>
+
+        <!-- <div class="legend">
+          <span><i class="dot" style="background:var(--q1)"></i>빠름·고심박</span>
+          <span><i class="dot" style="background:var(--q2)"></i>빠름·저심박</span>
+          <span><i class="dot" style="background:var(--q3)"></i>느림·고심박</span>
+          <span><i class="dot" style="background:var(--q4)"></i>느림·저심박</span>
+        </div> -->
+        <div class="row" style="gap:10px; flex-wrap:wrap;">
+          <label class="muted">기준
+            <select id="quadMode">
+              <option value="median" selected>자동(중앙값)</option>
+              <option value="manual">수동 입력</option>
+            </select>
+          </label>
+          <label class="muted">평속(km/h)
+            <input id="quadX0" type="number" step="0.1" placeholder="예: 18" disabled>
+          </label>
+          <label class="muted">심박(bpm)
+            <input id="quadY0" type="number" step="1" placeholder="예: 135" disabled>
+          </label>
+          <button id="quadRedrawBtn" class="btn btn-primary">새로고침</button>
+          <button id="quadSavePngBtn" class="btn btn-secondary">차트 PNG 저장</button>
+          <!-- <button id="quadCloseBtn" class="btn">닫기</button> -->
+        </div>
+      </div>
+
+
+
+    </section>
+    <!-- ▲▲▲ 추가 끝 ▲▲▲ -->
+
 
     <!-- 누적 이동 거리 그래프 -->
     <div id="cumCard" class="card" style="display:none;">
