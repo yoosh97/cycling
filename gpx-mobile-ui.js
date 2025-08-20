@@ -18,7 +18,7 @@ document.getElementById('downloadSample')?.addEventListener('click', (e) => {
     'width=620,height=740,noopener'
   );
   // 포커스 보장(브라우저별)
-  try { w?.focus(); } catch {}
+  try { w?.focus(); } catch { }
 });
 
 
@@ -46,6 +46,97 @@ const haversine = (lat1, lon1, lat2, lon2) => {
 };
 const fileKey = (f) => `${f.name}|${f.size}|${f.lastModified}`;         // 🧹 REFACTOR: 파일 키 유틸 단일화
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+
+
+
+
+
+
+
+
+
+
+/* ===== Quadrant 유틸 ===== */
+const median = (arr) => {
+  const a = (arr || []).slice().filter(Number.isFinite).sort((x, y) => x - y);
+  const n = a.length; if (!n) return NaN;
+  return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2;
+};
+
+function roundRectPath(ctx, x, y, w, h, r = 6) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+/* ── 가이드선 플러그인 ── */
+const quadCrosshair = {
+  id: 'quadCrosshair',
+  afterDraw(c, _args, opts) {
+    if (!opts) return;
+    const { x0, y0 } = opts;
+    if (!(Number.isFinite(x0) && Number.isFinite(y0))) return;
+    const { ctx, chartArea: { left, right, top, bottom }, scales: { x, y } } = c;
+    ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = '#777';
+    const px = x.getPixelForValue(x0); ctx.beginPath(); ctx.moveTo(px, top); ctx.lineTo(px, bottom); ctx.stroke();
+    const py = y.getPixelForValue(y0); ctx.beginPath(); ctx.moveTo(left, py); ctx.lineTo(right, py); ctx.stroke();
+    ctx.restore();
+  }
+};
+
+/* ── 연결선 + 라벨 플러그인 ── */
+const quadLabelPlugin = {
+  id: 'quadLabelPlugin',
+  afterDatasetsDraw(chart, _args, opts) {
+    const target = opts?.target; if (!target) return;
+    const meta = chart.getDatasetMeta(target.datasetIndex);
+    const el = meta?.data?.[target.index]; if (!el) return;
+
+    const { x, y } = el.getProps(['x', 'y'], true);
+    const { chartArea } = chart;
+    const ctx = chart.ctx;
+
+    const linkX = Math.min(chartArea.right - 6, x + 24);
+    const linkY = Math.max(chartArea.top + 6, y - 24);
+
+    ctx.save();
+    ctx.strokeStyle = '#333'; ctx.setLineDash([3, 2]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(linkX, linkY); ctx.stroke();
+    ctx.setLineDash([]);
+
+    const text = String(target.text || '');
+    ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+    const padX = 6, padY = 4, h = 20, w = ctx.measureText(text).width + padX * 2;
+
+    let bx = linkX + 8, by = linkY - h / 2;
+    if (bx + w > chartArea.right) bx = chartArea.right - w - 2;
+    if (by < chartArea.top) by = chartArea.top + 2;
+
+    ctx.fillStyle = 'rgba(255,255,255,.92)';
+    ctx.strokeStyle = '#bbb';
+    roundRectPath(ctx, bx, by, w, h, 6);
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = '#111'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, bx + padX, by + h / 2);
+    ctx.restore();
+  }
+};
+
+if (window.Chart) {
+  Chart.register(quadCrosshair, quadLabelPlugin);
+}
+
+
+
+
+
 
 
 /* ===== 토스트/오버레이 ===== */
@@ -637,7 +728,8 @@ function downloadCSV(filename, csv, { bom = true, attach = true, delayRevokeMs =
 
 
 /* ====== 요약 테이블: 지표 선택 ====== */
-const SUMMARY_COLS_KEY = "summaryVisibleCols_v1";
+/* const SUMMARY_COLS_KEY = "summaryVisibleCols_v1"; */
+const SUMMARY_COLS_KEY = "summaryVisibleCols_v2";
 const SUMMARY_COLUMNS = [
   { key: "total_km", label: "거리(km)" },
   { key: "elapsed", label: "경과시간" },
@@ -658,13 +750,20 @@ const SUMMARY_COLUMNS = [
   { key: "if", label: "IF" },
   { key: "tss", label: "TSS" }
 ];
+
 function getVisibleSet() {
   try {
-    const arr = JSON.parse(localStorage.getItem(SUMMARY_COLS_KEY) || "[]");
-    if (Array.isArray(arr) && arr.length) return new Set(arr);
-  } catch { }
-  return new Set(SUMMARY_COLUMNS.map(c => c.key));
+    const saved = JSON.parse(localStorage.getItem(SUMMARY_COLS_KEY) || "[]");
+    const validKeys = new Set(SUMMARY_COLUMNS.map(c => c.key));
+    const filtered = saved.filter(k => validKeys.has(k));
+    return filtered.length ? new Set(filtered) : new Set(SUMMARY_COLUMNS.map(c => c.key));
+  } catch {
+    return new Set(SUMMARY_COLUMNS.map(c => c.key));
+  }
 }
+
+
+
 function saveVisibleSet(set) { localStorage.setItem(SUMMARY_COLS_KEY, JSON.stringify([...set])); }
 function buildSummaryHeader() {
   const thead = document.querySelector("#summaryTable thead");
@@ -712,6 +811,36 @@ function applySummaryColumnVisibility() {
 
 
 
+/* ===== 사분면 데이터 수집기 =====
+ * 우선 요약 테이블 DOM을 파싱해서 수집합니다.
+ * (내부에 summaryRows 변수가 있으면 그것을 사용하도록 쉽게 교체 가능)
+ */
+function collectSummaryForQuadrant() {
+  const rows = Array.from(document.querySelectorAll('#summaryTable tbody tr'));
+  const pts = [];
+  for (const tr of rows) {
+    const file = tr.querySelector('[data-col="file"]')?.textContent?.trim();
+    const kmhStr = tr.querySelector('[data-col="avg_kmh_moving"]')?.textContent?.trim();
+    const hrStr = tr.querySelector('[data-col="avg_hr"]')?.textContent?.trim();
+    const x = parseFloat(kmhStr?.replace(/[^\d.]/g, ''));
+    const y = parseFloat(hrStr?.replace(/[^\d.]/g, ''));
+    if (file && Number.isFinite(x) && Number.isFinite(y)) {
+      pts.push({ x, y, label: file });
+    }
+  }
+  return pts;
+}
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* 지표 선택 바텀시트 */
@@ -742,11 +871,14 @@ function ensureMetricSheet() {
     const id = `metric_${c.key}`;
     const wrap = document.createElement("label");
     wrap.style.display = "inline-flex"; wrap.style.alignItems = "center"; wrap.style.gap = "8px";
-    wrap.innerHTML = `<input type="checkbox" id="${id}" ${visible.has(c.key) ? "checked" : ""}/><span>${c.label}</span>`;
+    wrap.innerHTML = `<input type="checkbox" id="${id}" value="${c.key}" ${visible.has(c.key) ? "checked" : ""}/><span>${c.label}</span>`;
+
+
     wrap.querySelector("input").addEventListener("change", (e) => {
       const v = getVisibleSet();
       if (e.target.checked) v.add(c.key); else v.delete(c.key);
-      saveVisibleSet(v); applySummaryColumnVisibility();
+      saveVisibleSet(v);
+      applySummaryColumnVisibility();
     });
     return wrap;
   };
@@ -777,14 +909,241 @@ function injectMetricToolbar() {
     <button id="metricShowBasicBtn" class="btn btn-secondary">기본</button>`;
   tbl.parentNode.insertBefore(bar, tbl);
   document.getElementById("openMetricSheetBtn").addEventListener("click", () => { ensureMetricSheet(); document.getElementById("metricSheet").classList.add("open"); });
+
   document.getElementById("metricShowAllBtn").addEventListener("click", () => { saveVisibleSet(new Set(SUMMARY_COLUMNS.map(c => c.key))); applySummaryColumnVisibility(); });
   document.getElementById("metricShowBasicBtn").addEventListener("click", () => {
-    saveVisibleSet(new Set(["total_km", "elapsed", "moving", "avg_kmh_elapsed", "max_kmh", "avg_pace", "elev_gain_m", "avg_hr", "calories_kcal"]));
+    saveVisibleSet(new Set(["total_km", "elapsed", "moving", "avg_kmh_elapsed", "avg_kmh_moving", "max_kmh", "avg_pace", "elev_gain_m", "avg_hr", "calories_kcal"]));
     applySummaryColumnVisibility();
   });
 }
 /* buildSummaryHeader(); */
 injectMetricToolbar();
+
+
+
+
+
+/* ===== 사분면(Quadrant) 렌더러 ===== */
+let quadChart = null;
+let quadHiIndex = -1;
+
+function setQuadStatus(t) {
+  const el = document.getElementById('quadStatus');
+  if (el) el.textContent = t;
+}
+
+function redrawQuadrant() {
+  // 0) Chart.js 로딩/캔버스 존재 가드
+  if (!window.Chart) { console.warn('Chart.js 미로딩'); return; }
+  const canvas = document.getElementById('quadChart');
+  if (!canvas) { console.warn('#quadChart 캔버스 없음'); return; }
+
+  const points = collectSummaryForQuadrant();
+  if (!points.length) { setQuadStatus('요약 표에서 유효한 데이터가 없습니다'); return; }
+
+  // 1) 안전한 모드/기준값 처리
+  const modeEl = document.getElementById('quadMode');
+  const mode = modeEl?.value ?? 'median';
+  let x0, y0;
+
+  if (mode === 'median') {
+    x0 = median(points.map(p => p.x));
+    y0 = median(points.map(p => p.y));
+    const xEl = document.getElementById('quadX0'), yEl = document.getElementById('quadY0');
+    if (xEl) xEl.value = Number.isFinite(x0) ? x0.toFixed(2) : '';
+    if (yEl) yEl.value = Number.isFinite(y0) ? y0.toFixed(0) : '';
+  } else {
+    const xEl = document.getElementById('quadX0');
+    const yEl = document.getElementById('quadY0');
+    const xManual = parseFloat(xEl?.value);
+    const yManual = parseFloat(yEl?.value);
+    // 수동값이 비었으면 중앙값으로 폴백
+    x0 = Number.isFinite(xManual) ? xManual : median(points.map(p => p.x));
+    y0 = Number.isFinite(yManual) ? yManual : median(points.map(p => p.y));
+  }
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const buckets = { q11: [], q10: [], q01: [], q00: [] };
+  points.forEach(p => {
+    const fast = p.x >= x0, high = p.y >= y0;
+    const key = (fast && high) ? 'q11' : (fast && !high) ? 'q10' : (!fast && high) ? 'q01' : 'q00';
+    buckets[key].push(p);
+  });
+
+  // 요약 박스 카운트 반영
+  const setBox = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = `${n} 개`; };
+  setBox('quadC11', buckets.q11.length);
+  setBox('quadC10', buckets.q10.length);
+  setBox('quadC01', buckets.q01.length);
+  setBox('quadC00', buckets.q00.length);
+
+  // "빠름·고심박(q11)"에서 최고값(심박 우선, 동률이면 평속) 찾기
+  quadHiIndex = -1; let hiY = -Infinity, hiX = -Infinity;
+  buckets.q11.forEach((p, i) => {
+    if (p.y > hiY || (p.y === hiY && p.x > hiX)) { hiY = p.y; hiX = p.x; quadHiIndex = i; }
+  });
+
+  // 포인트 스타일
+  const q11PointRadius = (ctx) => (ctx.dataIndex === quadHiIndex ? 6 : 4);
+  const q11PointBorderWidth = (ctx) => (ctx.dataIndex === quadHiIndex ? 2 : 0);
+  const q11PointBorderColor = '#111';
+
+  // 차트 생성/갱신
+  quadChart?.destroy();
+  const ctx = document.getElementById('quadChart').getContext('2d');
+
+
+
+  quadChart = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        { label: '빠름·고심박', data: buckets.q11, parsing: false, pointRadius: q11PointRadius, pointBorderWidth: q11PointBorderWidth, pointBorderColor: q11PointBorderColor, backgroundColor: css('--q1') },
+        { label: '빠름·저심박', data: buckets.q10, parsing: false, pointRadius: 4, backgroundColor: css('--q2') },
+        { label: '느림·고심박', data: buckets.q01, parsing: false, pointRadius: 4, backgroundColor: css('--q3') },
+        { label: '느림·저심박', data: buckets.q00, parsing: false, pointRadius: 4, backgroundColor: css('--q4') }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        title: {
+          display: true,                // 제목 표시 여부
+          text: '평균속도 × 평균심박 매트릭스', // 제목 텍스트
+          font: {
+            size: 20,                   // 글자 크기
+            weight: 'bold'              // 글자 두께
+          },
+          color: '#333',                // 글자 색
+          padding: {
+            top: 10,
+            bottom: 30
+          },
+          align: 'center'               // left | center | right
+        },
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.raw.label} — ${ctx.raw.x.toFixed(2)} km/h, ${ctx.raw.y.toFixed(0)} bpm`
+          }
+        },
+        quadCrosshair: { x0, y0 },
+        quadLabelPlugin: (quadHiIndex >= 0) ? {
+          target: { datasetIndex: 0, index: quadHiIndex, text: buckets.q11[quadHiIndex].label }
+        } : {}
+      },
+      scales: {
+        x: { title: { display: true, text: '평속 (km/h)' } },
+        y: { title: { display: true, text: '평균심박 (bpm)' } }
+      }
+    }
+  });
+
+  setQuadStatus(`점 ${points.length}개 · 기준 X=${x0.toFixed(2)} / Y=${y0.toFixed(0)}`);
+}
+
+/* 카드 열기/닫기/버튼 이벤트 — 버튼이 없어도 항상 바인딩되도록 수정 */
+(function bindQuadrantUI() {
+  const openBtn = document.getElementById('openQuadrantBtn');   // 있을 수도, 없을 수도
+  const card = document.getElementById('quadCard');
+  const modeSel = document.getElementById('quadMode');
+  const x0El = document.getElementById('quadX0');
+  const y0El = document.getElementById('quadY0');
+  const redrawBtn = document.getElementById('quadRedrawBtn');
+  const savePng = document.getElementById('quadSavePngBtn');
+  const closeBtn = document.getElementById('quadCloseBtn');
+
+  if (!card) return; // 카드 자체가 없으면만 중단
+
+  // (1) 열기 버튼이 있으면 동작 유지
+  openBtn?.addEventListener('click', () => {
+    card.style.display = '';
+    // 요약표가 이미 차있다면 즉시 렌더
+    requestAnimationFrame(() => redrawQuadrant());
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  // (2) 기준 선택에 따라 수동 입력 enable/disable
+  const applyManualEditable = () => {
+    const manual = (modeSel?.value === 'manual');
+    if (x0El) x0El.disabled = !manual;
+    if (y0El) y0El.disabled = !manual;
+  };
+  modeSel?.addEventListener('change', applyManualEditable);
+  applyManualEditable(); // 초기 1회 적용
+
+  // (3) 새로고침 버튼
+  redrawBtn?.addEventListener('click', () => {
+    redrawQuadrant();
+  });
+
+  // (4) PNG 저장 버튼
+  // PNG 저장 (비율 유지 + 1200x1200, 흰 배경)
+  savePng?.addEventListener('click', () => {
+    if (!window.Chart || !quadChart) {
+      toast?.('차트가 아직 생성되지 않았습니다');
+      return;
+    }
+
+    try {
+      const src = quadChart.canvas;             // 원본 차트 캔버스
+      const srcW = src.width;                   // 논리 픽셀(백스토어) 크기
+      const srcH = src.height;
+
+      const outW = 1200;                        // 고정 출력 크기
+      const outH = 1200;
+
+      // 1) 원본 비율 유지 스케일 계산 (레터박스)
+      const scale = Math.min(outW / srcW, outH / srcH);
+      const drawW = Math.round(srcW * scale);
+      const drawH = Math.round(srcH * scale);
+
+      // 중앙 정렬 오프셋
+      const dx = Math.floor((outW - drawW) / 2);
+      const dy = Math.floor((outH - drawH) / 2);
+
+      // 2) 임시 캔버스에 그리기
+      const tmp = document.createElement('canvas');
+      tmp.width = outW;
+      tmp.height = outH;
+      const ctx = tmp.getContext('2d');
+
+      // 배경 흰색(투명 PNG 원하면 이 줄 제거)
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, outW, outH);
+
+      // 보간 품질 향상
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      // 3) 원본을 비율 유지하여 중앙에 그리기
+      ctx.drawImage(src, dx, dy, drawW, drawH);
+
+      // 4) 저장
+      const a = document.createElement('a');
+      a.href = tmp.toDataURL('image/png');
+      a.download = 'quadrant.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      toast?.('PNG 저장 완료 (1200×1200, 비율 유지)');
+    } catch (e) {
+      console.error(e);
+      toast?.('PNG 저장 중 오류');
+    }
+  });
+
+  // (5) 닫기 버튼(있을 때만)
+  closeBtn?.addEventListener('click', () => {
+    card.style.display = 'none';
+  });
+})();
+
+
+
+
+
 
 // ✅ 지표 선택 체크박스 클릭 이벤트 위임 (추가 코드)
 document.getElementById("metricSheet")?.addEventListener("click", (e) => {
@@ -1133,6 +1492,9 @@ elAnalyze?.addEventListener("click", async () => {
     const files = selectedFiles.slice();
     if (!files.length) { toast("GPX 파일을 선택해 주세요"); return; }
 
+    // 분석 시작 시 기본으로 숨김
+    document.getElementById('quadCard')?.style && (document.getElementById('quadCard').style.display = 'none');
+
     const movingThreshold = numOr(parseFloat($("#movingThreshold")?.value), 1.0);
     const lapDistanceKm = numOr(parseFloat($("#lapDistanceKm")?.value), 1.0);
     const minElevGain = numOr(parseFloat($("#minElevGain")?.value), 1.0);
@@ -1255,7 +1617,7 @@ elAnalyze?.addEventListener("click", async () => {
       const label = `${baseLabel} · ${file.name}`;
       const sumRow = {
         file: file.name,
-        total_km: round(analysis.totalDistM / 1000, 3),
+        total_km: round(analysis.totalDistM / 1000, 2),
         elapsed: secToHMS(analysis.elapsedS),
         moving: secToHMS(analysis.movingS),
         avg_kmh_elapsed: round(analysis.avgKmhElapsed, 2),
@@ -1330,11 +1692,15 @@ elAnalyze?.addEventListener("click", async () => {
         if (!th) return;
 
         const col = th.dataset.col;
-        const dir = th.classList.contains('sort-asc') ? -1 : 1;
+        const dir = th.classList.contains('sort-desc') ? 1 : -1;
+        /* const dir = th.classList.contains('sort-asc') ? -1 : 1; */
 
         // 화살표 갱신
         thead.querySelectorAll('th[data-col]').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
         th.classList.add(dir === 1 ? 'sort-asc' : 'sort-desc');
+
+
+
 
         const rows = Array.from(tbody.rows); // ← tfoot 건드리지 않음
         rows.sort((a, b) => {
@@ -1376,18 +1742,29 @@ elAnalyze?.addEventListener("click", async () => {
 
     // [표시 분기]
     if (files.length === 1 && detailSeries) {
+      const quadCard = document.getElementById('quadCard');
+      quadCard.style.display = 'none';
+
       setDetailMode(true);                             // 🧹 REFACTOR
       renderDetailCharts(detailSeries);
     } else {
+      quadCard.style.display = '';
       setDetailMode(false);                            // 🧹 REFACTOR
       updateCumulativeChart(fileDistanceForChart, "file");
       updateElevationChart(fileDistanceForChart, document.getElementById("elevMode")?.value || "file");
     }
 
+
+
     if (map && bounds && bounds.isValid()) map.fitBounds(bounds.pad(0.1));
     if (elExportSummary) elExportSummary.disabled = lastSummary.length === 0;
     if (elExportLaps) elExportLaps.disabled = lastLaps.length === 0 || (lapsSection?.style.display === "none");
     applySummaryColumnVisibility();
+
+
+
+    redrawQuadrant();     // ✅ 분석 후 자동 사분면 갱신
+
     hideProgress(); toast("분석 완료");
   } catch (err) { console.error(err); hideProgress(); toast(`오류: ${err.message || err}`); }
 });
@@ -1408,3 +1785,25 @@ elExportLaps?.addEventListener("click", () => {
   if (!lastLaps.length) { toast("랩 데이터가 없습니다"); return; }
   const csv = toCSV(lastLaps); downloadCSV("gpx_laps.csv", csv); toast("랩(구간) 기록 CSV 저장 완료");
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
